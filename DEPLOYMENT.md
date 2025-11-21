@@ -4,22 +4,42 @@
 
 ### Frontend (GitHub Pages)
 
-1. **Build the Next.js app:**
+#### Automatic Deployment (Recommended)
+
+1. **Enable GitHub Pages:**
+   - Go to repository **Settings** → **Pages**
+   - Under **Source**, select **GitHub Actions**
+   - Save changes
+
+2. **Push to main branch:**
+   - The GitHub Actions workflow will automatically build and deploy
+   - Workflow file: `.github/workflows/deploy-frontend.yml`
+
+3. **Access your site:**
+   - Available at: `https://YOUR_USERNAME.github.io/WordBattle/`
+   - Takes 2-5 minutes after first deployment
+
+**Note**: See `frontend/GITHUB_PAGES_DEPLOYMENT.md` for detailed instructions.
+
+#### Manual Deployment
+
+1. **Build for GitHub Pages:**
    ```bash
    cd frontend
-   npm run build
+   npm run build:gh-pages
    ```
 
-2. **Export static site:**
+2. **Deploy to GitHub Pages:**
+   - Go to repository **Settings** → **Pages**
+   - Select **Deploy from a branch**
+   - Choose `main` branch and `/docs` folder
+   - Copy `frontend/out` to `docs` directory
    ```bash
-   npm run export
+   cp -r frontend/out docs
+   git add docs
+   git commit -m "Deploy to GitHub Pages"
+   git push origin main
    ```
-   Note: You may need to configure `next.config.ts` for static export.
-
-3. **Deploy to GitHub Pages:**
-   - Enable GitHub Pages in repository settings
-   - Set source to `/docs` folder or `gh-pages` branch
-   - Or use GitHub Actions for automatic deployment
 
 ### Backend API (VPS/Docker)
 

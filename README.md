@@ -9,7 +9,7 @@ A vocabulary-learning word-building strategy game. Players compete against AI op
 - **Database**: PostgreSQL (player data, progress) + Redis (caching)
 - **Mobile**: React Native + Expo (iOS/Android)
 - **Containerization**: Docker & Docker Compose
-- **Deployment**: GitHub Pages (web) + VPS (API)
+- **Deployment**: GitHub Pages (web, automatic via GitHub Actions) + VPS (API)
 
 ## 📋 Features
 
