@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Redirecting...</title>
+    <script>
+      // GitHub Pages 404.html workaround for client-side routing
+      // Redirect to index.html with the path as a query parameter
+      const path = window.location.pathname;
+      const basePath = path.split('/')[1] || '';
+      const redirectPath = basePath ? `/${basePath}/index.html` : '/index.html';
+      
+      // Preserve query string
+      const query = window.location.search;
+      const hash = window.location.hash;
+      
+      // Redirect
+      window.location.replace(redirectPath + query + hash);
+    </script>
+  </head>
+  <body>
+    <p>Redirecting...</p>
+  </body>
+</html>
+

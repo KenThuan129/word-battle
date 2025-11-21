@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useGameStore } from '@/stores/gameStore';
 import { JOURNEY_LEVELS, getUnlockedLevels, getLevel } from '@/lib/journeyLevels';
 import { JourneyLevel, JourneyProgress } from '@/types';
@@ -9,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
 export default function JourneyPage() {
+  const router = useRouter();
   const [progress, setProgress] = useState<JourneyProgress>({
     currentLevel: 1,
     totalStars: 0,
@@ -43,8 +45,9 @@ export default function JourneyPage() {
     // Start game with this level's settings
     startGame('journey', level.aiDifficulty);
     
-    // Navigate to game page
-    window.location.href = `/game?level=${levelId}`;
+    // Navigate to game page using Next.js router (respects basePath)
+    // Add trailing slash for GitHub Pages compatibility
+    router.push(`/game/?level=${levelId}`);
   };
   
   const getStarDisplay = (stars: number) => {
