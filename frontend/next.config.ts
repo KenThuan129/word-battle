@@ -29,7 +29,16 @@ const nextConfig: NextConfig = {
   // Skip any static path checking during build (helps with export)
   skipTrailingSlashRedirect: true,
   
-  // Use webpack for static export builds (Turbopack has issues with native dependencies)
+  // Explicitly disable Turbopack and use webpack for better native module support
+  // Turbopack has issues with native dependencies like lightningcss
+  experimental: {
+    turbo: undefined, // Disable Turbopack
+  },
+  
+  // Empty turbopack config to explicitly use webpack
+  turbopack: undefined,
+  
+  // Use webpack for static export builds (better native module support)
   webpack: (config, { isServer }) => {
     // Ensure native modules are handled correctly
     if (!isServer) {

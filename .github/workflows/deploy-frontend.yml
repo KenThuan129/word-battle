@@ -55,9 +55,6 @@ jobs:
         env:
           GITHUB_PAGES: 'true'
           GITHUB_REPOSITORY: ${{ github.repository }}
-          # Force webpack instead of Turbopack for better native module support
-          NEXT_PRIVATE_TURBO: '0'
-          NEXT_PRIVATE_USE_TURBO: '0'
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
