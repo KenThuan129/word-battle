@@ -19,7 +19,7 @@
    - Available at: `https://YOUR_USERNAME.github.io/WordBattle/`
    - Takes 2-5 minutes after first deployment
 
-**Note**: See `frontend/GITHUB_PAGES_DEPLOYMENT.md` for detailed instructions.
+**Note**: The deployment workflow automatically handles native bindings installation for Tailwind CSS v4 and lightningcss.
 
 #### Manual Deployment
 

@@ -86,11 +86,11 @@ export default function WordBankPage() {
     switch (difficulty) {
       case 'common':
         return 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200';
-      case 'uncommon':
+      case 'intermediate':
         return 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200';
-      case 'rare':
+      case 'advanced':
         return 'bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200';
-      case 'exotic':
+      case 'rare':
         return 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200';
       default:
         return 'bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200';

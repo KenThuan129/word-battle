@@ -161,6 +161,8 @@ export interface ChallengePuzzle {
 }
 
 export interface PuzzleConfig {
+  aiDifficulty?: AIDifficulty;
+  targetScore?: number;
   fixedLetters?: string[];
   targetWords?: string[];
   timeLimit?: number;

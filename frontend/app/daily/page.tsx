@@ -95,7 +95,7 @@ export default function DailyChallengePage() {
         type: 'minimum_words',
         config: {
           aiDifficulty: 'hard',
-          minimumWords: 5,
+          minWordsRequired: 5,
           targetScore: 150,
         },
         keyReward: 2,
@@ -117,7 +117,7 @@ export default function DailyChallengePage() {
   const handleStartPuzzle = (puzzle: ChallengePuzzle) => {
     // Start game with puzzle configuration
     const aiDifficulty = puzzle.config.aiDifficulty || 'easy';
-    startGame('daily', aiDifficulty, puzzle.config);
+    startGame('daily', aiDifficulty);
     
     // Navigate to game page with puzzle ID
     window.location.href = `/game?mode=daily&puzzle=${puzzle.id}`;
@@ -297,10 +297,10 @@ export default function DailyChallengePage() {
                         <span className="font-semibold">{puzzle.config.targetScore}</span>
                       </div>
                     )}
-                    {puzzle.config.minimumWords && (
+                    {puzzle.config.minWordsRequired && (
                       <div className="flex justify-between">
                         <span className="text-gray-600 dark:text-gray-400">Minimum Words:</span>
-                        <span className="font-semibold">{puzzle.config.minimumWords}</span>
+                        <span className="font-semibold">{puzzle.config.minWordsRequired}</span>
                       </div>
                     )}
                     {puzzle.config.fixedLetters && (

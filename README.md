@@ -240,9 +240,49 @@ To use Oxford Dictionary words in the game:
 - `GET /api/wordbank` - Get player's collected words
 - `POST /api/wordbank/{word}/favorite` - Toggle favorite
 
+## 🚀 Deployment
+
+### Frontend (GitHub Pages)
+
+The frontend automatically deploys to GitHub Pages when you push to the `main` branch (frontend changes only). The workflow:
+
+1. Builds the Next.js app as a static export
+2. Uploads to GitHub Pages
+3. Available at `https://[username].github.io/WordBattle/`
+
+**Manual deployment:**
+```bash
+cd frontend
+npm run build:gh-pages
+```
+
+The built files will be in `frontend/out/`.
+
+### Backend (VPS/Docker)
+
+1. **Build Docker image:**
+   ```bash
+   cd backend/WordBattle.API
+   docker build -t wordbattle-api .
+   ```
+
+2. **Run with Docker Compose:**
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **Set environment variables:**
+   ```bash
+   export OxfordDictionary__AppId="your_app_id"
+   export OxfordDictionary__AppKey="your_app_key"
+   export ConnectionStrings__DefaultConnection="your_postgres_connection_string"
+   ```
+
+See `DEPLOYMENT.md` for detailed deployment instructions.
+
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please see `CONTRIBUTING.md` for guidelines.
 
 ## 📄 License
 
@@ -252,6 +292,12 @@ This project is open source and available under the MIT License.
 
 The mobile app is built with React Native and Expo, sharing core game logic with the web app.
 
+### Prerequisites
+
+- Node.js 18+ and npm
+- Expo CLI: `npm install -g expo-cli`
+- iOS Simulator (Mac) or Android Emulator / Physical device
+
 ### Setup
 
 ```bash
@@ -259,6 +305,11 @@ cd mobile
 npm install
 npm start
 ```
+
+Then:
+- Press `i` for iOS Simulator
+- Press `a` for Android Emulator
+- Scan QR code with Expo Go app on your phone
 
 ### Structure
 
@@ -269,6 +320,11 @@ npm start
 - `src/types/` - Shared TypeScript types
 
 The mobile app uses the same game engine, AI logic, and dictionary as the web app for consistency across platforms.
+
+### Troubleshooting
+
+- **localStorage errors**: Install `@react-native-async-storage/async-storage` and use `AsyncStorage` instead
+- **Module resolution errors**: Ensure `tsconfig.json` has correct paths and restart Expo bundler
 
 ## 🙏 Acknowledgments
 
