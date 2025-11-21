@@ -41,8 +41,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
-      - name: Install lightningcss native bindings
-        run: npm install --no-save lightningcss || npm rebuild lightningcss || true
+      - name: Ensure native bindings are installed
+        run: |
+          # Force reinstall Tailwind CSS v4 packages to ensure native bindings
+          npm install @tailwindcss/oxide tailwindcss @tailwindcss/postcss --save-dev --force || true
+          npm rebuild || true
         continue-on-error: true
       
       - name: Setup Pages
