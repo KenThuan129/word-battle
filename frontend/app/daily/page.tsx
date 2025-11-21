@@ -119,8 +119,14 @@ export default function DailyChallengePage() {
     const aiDifficulty = puzzle.config.aiDifficulty || 'easy';
     startGame('daily', aiDifficulty);
     
-    // Navigate to game page with puzzle ID
-    window.location.href = `/game?mode=daily&puzzle=${puzzle.id}`;
+    // Get basePath from current location (for GitHub Pages compatibility)
+    const basePath = typeof window !== 'undefined' 
+      ? window.location.pathname.split('/').slice(0, 2).join('/') || '' 
+      : '';
+    
+    // Navigate to game page with basePath (respects GitHub Pages subdirectory)
+    const gameUrl = `${basePath}/game/?mode=daily&puzzle=${puzzle.id}`;
+    window.location.href = gameUrl;
   };
   
   const getDifficultyColor = (difficulty: string) => {

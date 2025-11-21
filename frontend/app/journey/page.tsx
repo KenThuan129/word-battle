@@ -45,9 +45,14 @@ export default function JourneyPage() {
     // Start game with this level's settings
     startGame('journey', level.aiDifficulty);
     
-    // Navigate to game page using Next.js router (respects basePath)
-    // Add trailing slash for GitHub Pages compatibility
-    router.push(`/game/?level=${levelId}`);
+    // Get basePath from current location (for GitHub Pages compatibility)
+    const basePath = typeof window !== 'undefined' 
+      ? window.location.pathname.split('/').slice(0, 2).join('/') || '' 
+      : '';
+    
+    // Navigate to game page with basePath (respects GitHub Pages subdirectory)
+    const gameUrl = `${basePath}/game/?level=${levelId}`;
+    window.location.href = gameUrl;
   };
   
   const getStarDisplay = (stars: number) => {

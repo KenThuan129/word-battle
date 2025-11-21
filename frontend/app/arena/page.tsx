@@ -135,7 +135,14 @@ export default function ArenaPage() {
     
     setSelectedDifficulty(difficulty);
     startGame('arena', difficulty);
-    window.location.href = `/game?mode=arena&difficulty=${difficulty}`;
+    // Get basePath from current location (for GitHub Pages compatibility)
+    const basePath = typeof window !== 'undefined' 
+      ? window.location.pathname.split('/').slice(0, 2).join('/') || '' 
+      : '';
+    
+    // Navigate to game page with basePath (respects GitHub Pages subdirectory)
+    const gameUrl = `${basePath}/game/?mode=arena&difficulty=${difficulty}`;
+    window.location.href = gameUrl;
   };
   
   const getDifficultyColor = (difficulty: AIDifficulty) => {
