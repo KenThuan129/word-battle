@@ -41,6 +41,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
+      - name: Install lightningcss native bindings
+        run: npm install --no-save lightningcss || npm rebuild lightningcss || true
+        continue-on-error: true
+      
       - name: Setup Pages
         uses: actions/configure-pages@v4
         with:
@@ -51,6 +55,9 @@ jobs:
         env:
           GITHUB_PAGES: 'true'
           GITHUB_REPOSITORY: ${{ github.repository }}
+          # Force webpack instead of Turbopack for better native module support
+          NEXT_PRIVATE_TURBO: '0'
+          NEXT_PRIVATE_USE_TURBO: '0'
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

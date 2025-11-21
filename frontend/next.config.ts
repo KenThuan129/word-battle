@@ -28,6 +28,18 @@ const nextConfig: NextConfig = {
   
   // Skip any static path checking during build (helps with export)
   skipTrailingSlashRedirect: true,
+  
+  // Use webpack for static export builds (Turbopack has issues with native dependencies)
+  webpack: (config, { isServer }) => {
+    // Ensure native modules are handled correctly
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+      };
+    }
+    return config;
+  },
 };
 
 export default nextConfig;
