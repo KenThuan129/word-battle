@@ -204,7 +204,7 @@ function generateWordsFromPosition(
     lettersFromBoard: Position[];
   }> = [];
   
-  const handLetters = hand.map(l => l.char).toLowerCase().split('');
+  const handLetters = hand.map(l => l.char.toLowerCase()).join('').split('');
   const handCounts: Record<string, number> = {};
   for (const char of handLetters) {
     handCounts[char] = (handCounts[char] || 0) + 1;
