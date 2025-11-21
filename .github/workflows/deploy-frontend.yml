@@ -39,14 +39,21 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       
       - name: Install dependencies
-        run: npm ci
-      
-      - name: Install lightningcss native bindings (Linux)
         run: |
-          # Explicitly install platform-specific lightningcss native bindings for Linux
-          npm install --save-dev lightningcss@latest lightningcss-linux-x64-gnu@latest --force || true
-          # Verify the native bindings are installed
-          ls -la node_modules/lightningcss/node_modules/lightningcss-linux-x64-gnu/ || true
+          # Use npm install instead of npm ci to handle new dependencies
+          # This ensures all native bindings are properly installed
+          npm install
+      
+      - name: Verify lightningcss native bindings
+        run: |
+          # Check if native bindings are installed
+          if [ -d "node_modules/lightningcss/node_modules/lightningcss-linux-x64-gnu" ]; then
+            echo "✅ Linux native bindings found"
+            ls -la node_modules/lightningcss/node_modules/lightningcss-linux-x64-gnu/ || true
+          else
+            echo "⚠️ Installing Linux native bindings..."
+            npm install --save-dev lightningcss-linux-x64-gnu@latest || true
+          fi
         continue-on-error: true
       
       - name: Setup Pages
