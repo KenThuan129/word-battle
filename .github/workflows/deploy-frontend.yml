@@ -40,19 +40,41 @@ jobs:
       
       - name: Install dependencies
         run: |
-          # Use npm install instead of npm ci to handle new dependencies
-          # This ensures all native bindings are properly installed
+          # Clean install to avoid npm optional dependencies bug
+          rm -rf node_modules package-lock.json
           npm install
       
-      - name: Verify lightningcss native bindings
+      - name: Fix native bindings (npm optional deps bug workaround)
         run: |
-          # Check if native bindings are installed
-          if [ -d "node_modules/lightningcss/node_modules/lightningcss-linux-x64-gnu" ]; then
-            echo "✅ Linux native bindings found"
-            ls -la node_modules/lightningcss/node_modules/lightningcss-linux-x64-gnu/ || true
+          # Workaround for npm bug with optional dependencies
+          # Force reinstall native packages that might not have been installed
+          echo "🔧 Fixing native bindings for Tailwind CSS v4..."
+          
+          # Remove and reinstall @tailwindcss/oxide with Linux bindings
+          rm -rf node_modules/@tailwindcss/oxide node_modules/@tailwindcss/oxide-linux-x64-gnu || true
+          npm install @tailwindcss/oxide @tailwindcss/oxide-linux-x64-gnu --save-dev --force || true
+          
+          # Remove and reinstall lightningcss with Linux bindings
+          rm -rf node_modules/lightningcss/node_modules/lightningcss-linux-x64-gnu || true
+          npm install lightningcss lightningcss-linux-x64-gnu --save-dev --force || true
+          
+          # Verify installations
+          echo "✅ Verifying native bindings..."
+          if [ -d "node_modules/@tailwindcss/oxide" ]; then
+            echo "✅ @tailwindcss/oxide found"
+            if [ -d "node_modules/@tailwindcss/oxide-linux-x64-gnu" ]; then
+              echo "✅ @tailwindcss/oxide-linux-x64-gnu found"
+            else
+              echo "⚠️ @tailwindcss/oxide-linux-x64-gnu not found"
+            fi
           else
-            echo "⚠️ Installing Linux native bindings..."
-            npm install --save-dev lightningcss-linux-x64-gnu@latest || true
+            echo "❌ @tailwindcss/oxide not found - this may cause build to fail"
+          fi
+          
+          if [ -d "node_modules/lightningcss/node_modules/lightningcss-linux-x64-gnu" ]; then
+            echo "✅ lightningcss Linux native bindings found"
+          else
+            echo "⚠️ lightningcss Linux native bindings not found"
           fi
         continue-on-error: true
       
