@@ -1,78 +1,48 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <title>Redirecting...</title>
     <script>
-      // GitHub Pages 404.html workaround for Next.js client-side routing
-      // This handles direct navigation to routes in Next.js static export
+      // GitHub Pages 404.html - Handles client-side routing for Next.js static export
+      // This file is served when a route doesn't exist as a physical file
       
-      (function() {
-        var path = window.location.pathname;
-        var search = window.location.search;
-        var hash = window.location.hash;
-        
-        // Remove leading/trailing slashes
-        path = path.replace(/^\/+|\/+$/g, '');
-        var segments = path ? path.split('/') : [];
-        
-        // For GitHub Pages with subdirectory deployment:
-        // URL: https://username.github.io/repo-name/journey
-        // segments = ['repo-name', 'journey']
-        
-        // Try to detect base path (repository name)
-        // Common repository names: word-battle, WordBattle, wordbattle
-        var basePath = '';
-        var routePath = '';
-        
-        if (segments.length > 0) {
-          var firstSeg = segments[0].toLowerCase();
-          
-          // Check if first segment looks like a repository name
-          // Repository names often contain specific keywords or patterns
-          var repoKeywords = ['word', 'battle'];
-          var hasRepoKeywords = repoKeywords.some(function(keyword) {
-            return firstSeg.indexOf(keyword) !== -1;
-          });
-          
-          // Also check against known repository name variations
-          var knownRepos = ['word-battle', 'wordbattle', 'word-battle'];
-          var isKnownRepo = knownRepos.indexOf(firstSeg) !== -1;
-          
-          if (hasRepoKeywords || isKnownRepo) {
-            // First segment is the repository/base path
-            basePath = '/' + segments[0];
-            routePath = segments.slice(1).join('/');
-          } else {
-            // Try heuristic: if more than one segment, first might be repo
-            if (segments.length > 1) {
-              basePath = '/' + segments[0];
-              routePath = segments.slice(1).join('/');
-            } else {
-              // Single segment - could be route or repo, assume route
-              routePath = segments[0];
-            }
-          }
-        }
-        
-        // Build redirect path
-        // Next.js static export with trailingSlash creates: /basePath/route/index.html
-        var redirectPath;
+      var path = window.location.pathname;
+      var search = window.location.search || '';
+      var hash = window.location.hash || '';
+      
+      // Repository name (must match your GitHub Pages URL structure)
+      var repoName = 'word-battle';
+      var basePath = '/' + repoName;
+      
+      // Remove leading/trailing slashes and split
+      var cleanPath = path.replace(/^\/+|\/+$/g, '');
+      var segments = cleanPath ? cleanPath.split('/') : [];
+      
+      // Determine the route
+      var routePath = '';
+      
+      if (segments.length === 0) {
+        // Root path - redirect to base index
+        window.location.replace(basePath + '/index.html' + search + hash);
+      } else if (segments[0].toLowerCase() === repoName.toLowerCase()) {
+        // Already on base path, extract route
+        routePath = segments.slice(1).join('/');
         if (!routePath) {
-          redirectPath = basePath + '/index.html';
+          // Just base path, no route
+          window.location.replace(basePath + '/index.html' + search + hash);
         } else {
-          redirectPath = basePath + '/' + routePath + '/index.html';
+          // Route exists, redirect to route/index.html
+          window.location.replace(basePath + '/' + routePath + '/index.html' + search + hash);
         }
-        
-        // Normalize slashes (remove double slashes)
-        redirectPath = redirectPath.replace(/\/+/g, '/');
-        
-        // Redirect
-        window.location.replace(redirectPath + search + hash);
-      })();
+      } else {
+        // Not on base path, assume first segment is route
+        routePath = segments.join('/');
+        window.location.replace(basePath + '/' + routePath + '/index.html' + search + hash);
+      }
     </script>
     <noscript>
-      <meta http-equiv="refresh" content="0;url=/">
+      <meta http-equiv="refresh" content="0;url=/word-battle/">
     </noscript>
   </head>
   <body>

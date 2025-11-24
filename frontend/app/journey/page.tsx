@@ -18,27 +18,46 @@ export default function JourneyPage() {
     unlockedLevels: [1],
     pvEArenaUnlocked: false,
   });
+  const [mounted, setMounted] = useState(false);
   
   const { startGame } = useGameStore();
   
   useEffect(() => {
+    // Ensure we're on the client side
+    setMounted(true);
+    
     // Load progress from localStorage
-    const savedProgress = localStorage.getItem('journeyProgress');
-    if (savedProgress) {
-      try {
-        const parsed = JSON.parse(savedProgress);
-        const unlocked = getUnlockedLevels(Object.keys(parsed.levelStars || {}).map(Number));
-        startTransition(() => {
-          setProgress({
-            ...parsed,
-            unlockedLevels: unlocked.length > 0 ? unlocked : [1],
+    try {
+      const savedProgress = typeof window !== 'undefined' ? localStorage.getItem('journeyProgress') : null;
+      if (savedProgress) {
+        try {
+          const parsed = JSON.parse(savedProgress);
+          const unlocked = getUnlockedLevels(Object.keys(parsed.levelStars || {}).map(Number));
+          startTransition(() => {
+            setProgress({
+              ...parsed,
+              unlockedLevels: unlocked.length > 0 ? unlocked : [1],
+            });
           });
-        });
-      } catch (error) {
-        console.error('Error loading progress:', error);
+        } catch (error) {
+          console.error('Error loading progress:', error);
+        }
       }
+    } catch (error) {
+      console.error('Error accessing localStorage:', error);
     }
   }, []);
+  
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <div className="container mx-auto p-4 max-w-6xl">
+        <div className="flex items-center justify-center min-h-screen">
+          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
   
   const handleStartLevel = (levelId: number) => {
     const level = getLevel(levelId);
