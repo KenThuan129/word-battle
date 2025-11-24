@@ -1,13 +1,13 @@
 import type { NextConfig } from "next";
 
 // Get repository name from environment or use default
-// If your repo is "username/WordBattle", this will be "WordBattle"
+// If your repo is "username/word-battle", this will be "word-battle"
 // For "username/username.github.io", this would be empty
-const repoName = process.env.GITHUB_REPOSITORY?.split('/')[1] || 'WordBattle';
+const repoName = process.env.GITHUB_REPOSITORY?.split('/')[1] || process.env.NEXT_PUBLIC_REPO_NAME || 'word-battle';
 const isGitHubPages = process.env.GITHUB_PAGES === 'true' || process.env.NODE_ENV === 'production';
 
 // Only set basePath if repo name is not username.github.io format
-const basePath = isGitHubPages && repoName !== 'username.github.io' ? `/${repoName}` : '';
+const basePath = isGitHubPages && repoName && repoName !== 'username.github.io' ? `/${repoName}` : '';
 
 const nextConfig: NextConfig = {
   // Enable static export for GitHub Pages
