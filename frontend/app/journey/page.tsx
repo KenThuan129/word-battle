@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, startTransition } from 'react';
+import React, { useState, useEffect, startTransition, ErrorInfo, Component } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from '@/stores/gameStore';
 import { JOURNEY_LEVELS, getUnlockedLevels, getLevel } from '@/lib/journeyLevels';
@@ -9,7 +9,48 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
-export default function JourneyPage() {
+// Error boundary component
+class JourneyErrorBoundary extends Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('Journey page error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="container mx-auto p-4 max-w-6xl">
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="text-center">
+              <h1 className="text-2xl font-bold mb-2">Something went wrong</h1>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                {this.state.error?.message || 'An error occurred loading the journey page'}
+              </p>
+              <Link href="/">
+                <Button>Go Home</Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+function JourneyPageContent() {
   const router = useRouter();
   const [progress, setProgress] = useState<JourneyProgress>({
     currentLevel: 1,
@@ -18,54 +59,38 @@ export default function JourneyPage() {
     unlockedLevels: [1],
     pvEArenaUnlocked: false,
   });
-  const [mounted, setMounted] = useState(false);
-  
   const { startGame } = useGameStore();
   
   useEffect(() => {
-    // Ensure we're on the client side
-    setMounted(true);
-    
     // Load progress from localStorage
-    try {
-      const savedProgress = typeof window !== 'undefined' ? localStorage.getItem('journeyProgress') : null;
-      if (savedProgress) {
-        try {
-          const parsed = JSON.parse(savedProgress);
-          const unlocked = getUnlockedLevels(Object.keys(parsed.levelStars || {}).map(Number));
-          startTransition(() => {
-            setProgress({
-              ...parsed,
-              unlockedLevels: unlocked.length > 0 ? unlocked : [1],
+    if (typeof window !== 'undefined') {
+      try {
+        const savedProgress = localStorage.getItem('journeyProgress');
+        if (savedProgress) {
+          try {
+            const parsed = JSON.parse(savedProgress);
+            const unlocked = getUnlockedLevels(Object.keys(parsed.levelStars || {}).map(Number));
+            startTransition(() => {
+              setProgress({
+                ...parsed,
+                unlockedLevels: unlocked.length > 0 ? unlocked : [1],
+              });
             });
-          });
-        } catch (error) {
-          console.error('Error loading progress:', error);
+          } catch (error) {
+            console.error('Error loading progress:', error);
+          }
         }
+      } catch (error) {
+        console.error('Error accessing localStorage:', error);
       }
-    } catch (error) {
-      console.error('Error accessing localStorage:', error);
     }
   }, []);
-  
-  // Prevent hydration mismatch by not rendering until mounted
-  if (!mounted) {
-    return (
-      <div className="container mx-auto p-4 max-w-6xl">
-        <div className="flex items-center justify-center min-h-screen">
-          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
-        </div>
-      </div>
-    );
-  }
   
   const handleStartLevel = (levelId: number) => {
     const level = getLevel(levelId);
     if (!level) return;
     
-    // Start game with this level's settings
     startGame('journey', level.aiDifficulty, { journeyLevelId: level.id });
-    
     router.push(`/game/?level=${levelId}`);
   };
   
@@ -174,6 +199,14 @@ export default function JourneyPage() {
         </Card>
       )}
     </div>
+  );
+}
+
+export default function JourneyPage() {
+  return (
+    <JourneyErrorBoundary>
+      <JourneyPageContent />
+    </JourneyErrorBoundary>
   );
 }
 
