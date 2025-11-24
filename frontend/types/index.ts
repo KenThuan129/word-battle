@@ -50,6 +50,7 @@ export interface Player {
   name: string;
   hand: Letter[];
   score: number;
+  hp?: number; // HP for boss battles (levels 5 and 10)
   isAI: boolean;
   aiDifficulty?: AIDifficulty;
 }
@@ -67,6 +68,11 @@ export interface GameState {
   lastMoveAt?: Date;
   turnHistory: Move[];
   activePowerUps: PowerUp[];
+  wordCount?: number; // Track word count for level 1
+  journeyLevelId?: number; // Track current journey level
+  sigilCount?: number; // Track words built for sigil activation (levels 5 and 10)
+  activeSigilEffects?: Array<{ type: string; damage: number; turnsRemaining: number }>; // Active sigil effects
+  fiveLetterWordCount?: number; // Track 5-letter words for Level 10 sigil
 }
 
 export interface PowerUp {
@@ -100,13 +106,15 @@ export interface JourneyLevel {
   description: string;
   aiDifficulty: AIDifficulty;
   aiVocabularyTier: number;
-  baseObjective: 'win' | 'score_threshold' | 'use_specific_words';
+  baseObjective: 'win' | 'score_threshold' | 'use_specific_words' | 'word_count' | 'race_to_score';
   targetScore?: number;
+  targetWordCount?: number;
   requiredWords?: string[];
   startingLetters?: string[];
   bannedLetters?: string[];
   turnLimit?: number;
   starsRequired: number;
+  allowGaps?: boolean; // Allow non-consecutive positions if gaps filled by existing letters
   rewards: {
     coins: number;
     powerUps: PowerUpType[];

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, startTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { useGameStore } from '@/stores/gameStore';
 import { AIDifficulty, ArenaRank, PvEArena, JourneyProgress } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -61,13 +62,13 @@ const ARENA_RANKS: ArenaRank[] = [
 ];
 
 export default function ArenaPage() {
+  const router = useRouter();
   const [arena, setArena] = useState<PvEArena>({
     difficulties: ARENA_RANKS,
     currentRank: 0,
     highestRankAchieved: 0,
   });
   const [progress, setProgress] = useState<JourneyProgress | null>(null);
-  const [selectedDifficulty, setSelectedDifficulty] = useState<AIDifficulty | null>(null);
   const [conditions, setConditions] = useState<{
     unlocked: boolean;
     minimumStars?: number;
@@ -76,56 +77,62 @@ export default function ArenaPage() {
   
   const { startGame } = useGameStore();
   
-  useEffect(() => {
-    loadArenaProgress();
-    loadJourneyProgress();
-  }, []);
-  
-  const loadArenaProgress = () => {
+  const loadArenaProgress = useCallback(() => {
     const saved = localStorage.getItem('arenaProgress');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setArena({
-          ...arena,
-          ...parsed,
-          difficulties: ARENA_RANKS.map((rank, index) => ({
-            ...rank,
-            currentWins: parsed.ranksWins?.[index] || 0,
-          })),
+        startTransition(() => {
+          setArena(prev => ({
+            ...prev,
+            ...parsed,
+            difficulties: ARENA_RANKS.map((rank, index) => ({
+              ...rank,
+              currentWins: parsed.ranksWins?.[index] || 0,
+            })),
+          }));
         });
       } catch (error) {
         console.error('Error loading arena progress:', error);
       }
     }
-  };
+  }, []);
   
-  const loadJourneyProgress = () => {
+  const loadJourneyProgress = useCallback(() => {
     const saved = localStorage.getItem('journeyProgress');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setProgress(parsed);
-        
-        // Check unlock conditions
-        const unlocked = parsed.pvEArenaUnlocked || parsed.currentLevel >= 5 || (parsed.totalStars || 0) >= 15;
-        setConditions({
-          unlocked,
-          minimumStars: 15,
-          minimumLevel: 5,
+        startTransition(() => {
+          setProgress(parsed);
+          
+          // Check unlock conditions
+          const unlocked = parsed.pvEArenaUnlocked || parsed.currentLevel >= 5 || (parsed.totalStars || 0) >= 15;
+          setConditions({
+            unlocked,
+            minimumStars: 15,
+            minimumLevel: 5,
+          });
         });
       } catch (error) {
         console.error('Error loading journey progress:', error);
       }
     } else {
       // No journey progress means arena is locked
-      setConditions({
-        unlocked: false,
-        minimumStars: 15,
-        minimumLevel: 5,
+      startTransition(() => {
+        setConditions({
+          unlocked: false,
+          minimumStars: 15,
+          minimumLevel: 5,
+        });
       });
     }
-  };
+  }, []);
+  
+  useEffect(() => {
+    loadArenaProgress();
+    loadJourneyProgress();
+  }, [loadArenaProgress, loadJourneyProgress]);
   
   const handleStartArena = (difficulty: AIDifficulty) => {
     if (!conditions.unlocked) {
@@ -133,16 +140,8 @@ export default function ArenaPage() {
       return;
     }
     
-    setSelectedDifficulty(difficulty);
     startGame('arena', difficulty);
-    // Get basePath from current location (for GitHub Pages compatibility)
-    const basePath = typeof window !== 'undefined' 
-      ? window.location.pathname.split('/').slice(0, 2).join('/') || '' 
-      : '';
-    
-    // Navigate to game page with basePath (respects GitHub Pages subdirectory)
-    const gameUrl = `${basePath}/game/?mode=arena&difficulty=${difficulty}`;
-    window.location.href = gameUrl;
+    router.push(`/game/?mode=arena&difficulty=${difficulty}`);
   };
   
   const getDifficultyColor = (difficulty: AIDifficulty) => {

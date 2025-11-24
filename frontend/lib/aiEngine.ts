@@ -100,10 +100,11 @@ export function calculateAIMove(
   aiHand: Letter[],
   playerHand: Letter[],
   config: AIConfig,
-  turn: number
+  turn: number,
+  allowGaps: boolean = false
 ): Move | null {
   // Get all possible words from AI's hand
-  const possibleMoves = generatePossibleMoves(board, aiHand, config);
+  const possibleMoves = generatePossibleMoves(board, aiHand, config, allowGaps);
   
   if (possibleMoves.length === 0) {
     return null; // No valid moves
@@ -139,7 +140,8 @@ export function calculateAIMove(
 function generatePossibleMoves(
   board: Board,
   hand: Letter[],
-  config: AIConfig
+  config: AIConfig,
+  allowGaps: boolean = false
 ): PossibleMove[] {
   const moves: PossibleMove[] = [];
   const handLetters = hand.map(l => l.char).join('').toLowerCase();
@@ -172,7 +174,7 @@ function generatePossibleMoves(
               }
             }
             
-            if (canPlaceWord(board, positions, word, hand)) {
+            if (canPlaceWord(board, positions, word, hand, allowGaps)) {
               moves.push({
                 word: word.toUpperCase(),
                 positions,
@@ -204,7 +206,7 @@ function generatePossibleMoves(
               }
             }
             
-            if (canPlaceWord(board, positions, word, hand)) {
+            if (canPlaceWord(board, positions, word, hand, allowGaps)) {
               moves.push({
                 word: word.toUpperCase(),
                 positions,
@@ -284,7 +286,8 @@ function canPlaceWord(
   board: Board,
   positions: Position[],
   word: string,
-  hand: Letter[]
+  hand: Letter[],
+  allowGaps: boolean = false
 ): boolean {
   if (positions.length !== word.length) {
     return false;
@@ -335,14 +338,15 @@ function canPlaceWord(
     playerId: 'ai',
   };
   
-  const validation = validateMove(board, move, hand, isValidWord);
+  const validation = validateMove(board, move, hand, isValidWord, allowGaps);
   return validation.valid;
 }
 
 function findWordPlacements(
   board: Board,
   word: string,
-  hand: Letter[]
+  hand: Letter[],
+  allowGaps: boolean = false
 ): Array<{ positions: Position[]; direction: 'horizontal' | 'vertical'; lettersNeeded: Letter[] }> {
   const placements: Array<{ positions: Position[]; direction: 'horizontal' | 'vertical'; lettersNeeded: Letter[] }> = [];
   
@@ -392,7 +396,7 @@ function findWordPlacements(
         }
       }
       
-      if (canBuild && canPlaceWord(board, positions, word, hand)) {
+      if (canBuild && canPlaceWord(board, positions, word, hand, allowGaps)) {
         // Check if placement connects to existing letters (for non-first moves)
         if (isFirstMove(board) || positions.some(pos => {
           const cell = board.cells[pos.row][pos.col];
@@ -454,7 +458,7 @@ function findWordPlacements(
         }
       }
       
-      if (canBuild && canPlaceWord(board, positions, word, hand)) {
+      if (canBuild && canPlaceWord(board, positions, word, hand, allowGaps)) {
         // Check if placement connects to existing letters (for non-first moves)
         if (isFirstMove(board) || positions.some(pos => {
           const cell = board.cells[pos.row][pos.col];
@@ -557,7 +561,8 @@ function calculateLetterManagementScore(move: PossibleMove, hand: Letter[], conf
 function generateWordsFromBoardLetters(
   board: Board,
   hand: Letter[],
-  config: AIConfig
+  config: AIConfig,
+  allowGaps: boolean = false
 ): PossibleMove[] {
   const moves: PossibleMove[] = [];
   
@@ -595,7 +600,8 @@ function generateWordsFromBoardLetters(
         hand,
         word,
         boardLetter.pos,
-        'horizontal'
+        'horizontal',
+        allowGaps
       );
       moves.push(...horizontalPlacements);
       
@@ -605,7 +611,8 @@ function generateWordsFromBoardLetters(
         hand,
         word,
         boardLetter.pos,
-        'vertical'
+        'vertical',
+        allowGaps
       );
       moves.push(...verticalPlacements);
     }
@@ -665,7 +672,8 @@ function findPlacementsExtendingFrom(
   hand: Letter[],
   word: string,
   startPos: Position,
-  direction: 'horizontal' | 'vertical'
+  direction: 'horizontal' | 'vertical',
+  allowGaps: boolean = false
 ): PossibleMove[] {
   const moves: PossibleMove[] = [];
   
@@ -745,7 +753,7 @@ function findPlacementsExtendingFrom(
     }
   }
   
-  if (canBuild && canPlaceWord(board, positions, word, hand)) {
+  if (canBuild && canPlaceWord(board, positions, word, hand, allowGaps)) {
     // Check connection requirement
     if (positions.some(pos => {
       const cell = board.cells[pos.row][pos.col];

@@ -3,6 +3,51 @@
 
 import { VALID_WORDS, isValidWord as isValidWordFromLoader, initializeBasicDictionary, loadComprehensiveDictionary } from './dictionaryLoader';
 
+const DICTIONARY_API_ENDPOINT = 'https://api.dictionaryapi.dev/api/v2/entries/en/';
+const CACHE_PREFIX = 'wordbattle_dictionary_cache_';
+
+const validationCache = new Map<string, boolean>();
+const pendingLookups = new Map<string, Promise<boolean>>();
+
+function getStorage(): Storage | null {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return null;
+  }
+  return window.localStorage;
+}
+
+function getCachedValidity(word: string): boolean | null {
+  const normalized = word.toLowerCase();
+  if (validationCache.has(normalized)) {
+    return validationCache.get(normalized)!;
+  }
+  const storage = getStorage();
+  if (!storage) {
+    return null;
+  }
+  const value = storage.getItem(CACHE_PREFIX + normalized);
+  if (value === null) {
+    return null;
+  }
+  const parsed = value === 'true';
+  validationCache.set(normalized, parsed);
+  return parsed;
+}
+
+function setCachedValidity(word: string, isValid: boolean): void {
+  const normalized = word.toLowerCase();
+  validationCache.set(normalized, isValid);
+  const storage = getStorage();
+  if (!storage) {
+    return;
+  }
+  try {
+    storage.setItem(CACHE_PREFIX + normalized, String(isValid));
+  } catch (error) {
+    console.warn('Failed to persist dictionary cache:', error);
+  }
+}
+
 export { VALID_WORDS, initializeBasicDictionary, loadComprehensiveDictionary };
 
 // Note: The dictionary is initialized in dictionaryLoader.ts
@@ -93,6 +138,55 @@ if (VALID_WORDS.size === 0) {
 
 export function isValidWord(word: string): boolean {
   return isValidWordFromLoader(word);
+}
+
+export async function ensureWordIsValid(word: string): Promise<boolean> {
+  const normalized = word.toLowerCase().trim();
+  if (!normalized) {
+    return false;
+  }
+
+  if (VALID_WORDS.has(normalized)) {
+    return true;
+  }
+
+  const cached = getCachedValidity(normalized);
+  if (cached !== null) {
+    if (cached) {
+      VALID_WORDS.add(normalized);
+    }
+    return cached;
+  }
+
+  if (pendingLookups.has(normalized)) {
+    return pendingLookups.get(normalized)!;
+  }
+
+  const lookupPromise = (async () => {
+    try {
+      const response = await fetch(`${DICTIONARY_API_ENDPOINT}${normalized}`);
+      if (response.ok) {
+        VALID_WORDS.add(normalized);
+        setCachedValidity(normalized, true);
+        return true;
+      }
+
+      if (response.status === 404) {
+        setCachedValidity(normalized, false);
+        return false;
+      }
+
+      console.warn(`Dictionary API returned unexpected status ${response.status} for word "${normalized}"`);
+    } catch (error) {
+      console.error('Failed to validate word via dictionary API:', error);
+    }
+    return false;
+  })();
+
+  pendingLookups.set(normalized, lookupPromise);
+  const result = await lookupPromise;
+  pendingLookups.delete(normalized);
+  return result;
 }
 
 export function addWordToDictionary(word: string): void {

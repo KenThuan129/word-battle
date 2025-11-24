@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from '@/stores/gameStore';
 import { JOURNEY_LEVELS, getUnlockedLevels, getLevel } from '@/lib/journeyLevels';
-import { JourneyLevel, JourneyProgress } from '@/types';
+import { JourneyProgress } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -28,9 +28,11 @@ export default function JourneyPage() {
       try {
         const parsed = JSON.parse(savedProgress);
         const unlocked = getUnlockedLevels(Object.keys(parsed.levelStars || {}).map(Number));
-        setProgress({
-          ...parsed,
-          unlockedLevels: unlocked.length > 0 ? unlocked : [1],
+        startTransition(() => {
+          setProgress({
+            ...parsed,
+            unlockedLevels: unlocked.length > 0 ? unlocked : [1],
+          });
         });
       } catch (error) {
         console.error('Error loading progress:', error);
@@ -43,16 +45,9 @@ export default function JourneyPage() {
     if (!level) return;
     
     // Start game with this level's settings
-    startGame('journey', level.aiDifficulty);
+    startGame('journey', level.aiDifficulty, { journeyLevelId: level.id });
     
-    // Get basePath from current location (for GitHub Pages compatibility)
-    const basePath = typeof window !== 'undefined' 
-      ? window.location.pathname.split('/').slice(0, 2).join('/') || '' 
-      : '';
-    
-    // Navigate to game page with basePath (respects GitHub Pages subdirectory)
-    const gameUrl = `${basePath}/game/?level=${levelId}`;
-    window.location.href = gameUrl;
+    router.push(`/game/?level=${levelId}`);
   };
   
   const getStarDisplay = (stars: number) => {
@@ -151,7 +146,7 @@ export default function JourneyPage() {
           </CardHeader>
           <CardContent>
             <p className="mb-4">
-              Congratulations! You've unlocked PvE Arena mode. Test your skills against challenging AI opponents.
+              Congratulations! You&apos;ve unlocked PvE Arena mode. Test your skills against challenging AI opponents.
             </p>
             <Link href="/arena">
               <Button variant="secondary">Enter Arena</Button>

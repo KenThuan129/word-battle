@@ -28,14 +28,17 @@ export default function WordBankPage() {
       const saved = localStorage.getItem('wordBank');
       
       if (saved) {
-        const parsed = JSON.parse(saved);
+        const parsed: WordBank = JSON.parse(saved);
         // Convert date strings to Date objects
-        parsed.words = parsed.words.map((w: any) => ({
+        const normalizedWords = parsed.words.map((w: WordEntry) => ({
           ...w,
           firstUsedAt: new Date(w.firstUsedAt),
           lastUsedAt: w.lastUsedAt ? new Date(w.lastUsedAt) : undefined,
         }));
-        setWordBank(parsed);
+        setWordBank({
+          ...parsed,
+          words: normalizedWords,
+        });
       } else {
         // Initialize empty word bank
         setWordBank({

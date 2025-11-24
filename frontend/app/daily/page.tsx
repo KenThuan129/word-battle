@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useGameStore } from '@/stores/gameStore';
 import { ChallengePuzzle, DailyChallenge, KeySystem } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
 export default function DailyChallengePage() {
+  const router = useRouter();
   const [dailyChallenge, setDailyChallenge] = useState<DailyChallenge | null>(null);
   const [keys, setKeys] = useState<KeySystem>({
     currentKeys: 0,
@@ -119,14 +121,7 @@ export default function DailyChallengePage() {
     const aiDifficulty = puzzle.config.aiDifficulty || 'easy';
     startGame('daily', aiDifficulty);
     
-    // Get basePath from current location (for GitHub Pages compatibility)
-    const basePath = typeof window !== 'undefined' 
-      ? window.location.pathname.split('/').slice(0, 2).join('/') || '' 
-      : '';
-    
-    // Navigate to game page with basePath (respects GitHub Pages subdirectory)
-    const gameUrl = `${basePath}/game/?mode=daily&puzzle=${puzzle.id}`;
-    window.location.href = gameUrl;
+    router.push(`/game/?mode=daily&puzzle=${puzzle.id}`);
   };
   
   const getDifficultyColor = (difficulty: string) => {
@@ -235,7 +230,7 @@ export default function DailyChallengePage() {
         </div>
         {isToday && (
           <div className="text-sm text-green-600 dark:text-green-400 font-semibold">
-            ✓ Today's Challenge
+            ✓ Today&apos;s Challenge
           </div>
         )}
       </div>
@@ -348,7 +343,7 @@ export default function DailyChallengePage() {
           </CardHeader>
           <CardContent>
             <p className="mb-2">
-              You've completed all 3 puzzles today! You earned:
+              You&apos;ve completed all 3 puzzles today! You earned:
             </p>
             <ul className="list-disc list-inside space-y-1">
               <li>🔑 {dailyChallenge.bonusReward.keys} bonus keys</li>
