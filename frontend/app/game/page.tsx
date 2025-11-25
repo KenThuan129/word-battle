@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Letter } from '@/types';
 import { useGameStore } from '@/stores/gameStore';
@@ -14,6 +14,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from 'sonner';
 
 export default function GamePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold">Calibrating runes…</h1>
+            <p className="text-sm text-muted-foreground">Loading battle board</p>
+          </div>
+        </div>
+      }
+    >
+      <GamePageContent />
+    </Suspense>
+  );
+}
+
+function GamePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { game, currentMove, startGame, selectLetter, selectCell, clearMove, submitMove, endGame, makeAIMove, exchangeVowel } = useGameStore();
