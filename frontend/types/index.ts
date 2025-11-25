@@ -30,11 +30,14 @@ export interface Cell {
   letter: Letter | null;
   isCenter: boolean;
   isNewlyPlaced?: boolean;
+  isCorrupted?: boolean; // Cannot place letters on corrupted squares (Level 7)
 }
 
 export interface Board {
   cells: Cell[][];
-  size: number;
+  size: number; // For backward compatibility, represents both width and height for square boards
+  width?: number; // Optional width for non-square boards (defaults to size)
+  height?: number; // Optional height for non-square boards (defaults to size)
 }
 
 export interface Move {
@@ -106,7 +109,7 @@ export interface JourneyLevel {
   description: string;
   aiDifficulty: AIDifficulty;
   aiVocabularyTier: number;
-  baseObjective: 'win' | 'score_threshold' | 'use_specific_words' | 'word_count' | 'race_to_score';
+  baseObjective: 'win' | 'score_threshold' | 'use_specific_words' | 'word_count' | 'race_to_score' | 'build_word';
   targetScore?: number;
   targetWordCount?: number;
   requiredWords?: string[];
@@ -115,6 +118,13 @@ export interface JourneyLevel {
   turnLimit?: number;
   starsRequired: number;
   allowGaps?: boolean; // Allow non-consecutive positions if gaps filled by existing letters
+  hasAI?: boolean; // Whether AI plays (defaults to true)
+  boardWidth?: number; // Custom board width (defaults to 8)
+  boardHeight?: number; // Custom board height (defaults to 8)
+  startingWord?: string; // Word to place on board at start (e.g., "EMISSION")
+  corruptedSquares?: Position[]; // Squares that cannot be used (Level 7)
+  targetWord?: string; // Word to build to win (Level 7: "STARS")
+  specialLetterDistribution?: { letters: string[]; turns: number }; // Boost certain letters for first N turns
   rewards: {
     coins: number;
     powerUps: PowerUpType[];
@@ -137,6 +147,7 @@ export interface JourneyProgress {
 export interface WordEntry {
   word: string;
   definition: string;
+  pronunciation?: string;
   partOfSpeech: string;
   difficulty: WordDifficulty;
   timesUsed: number;

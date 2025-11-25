@@ -1,15 +1,28 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import {
+  Cinzel,
+  Rajdhani,
+  Share_Tech_Mono as ShareTechMono,
+} from "next/font/google";
 import "./globals.css";
+import { Toaster } from "@/components/ui/sonner";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const displaySerif = Cinzel({
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-ancient-display",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const bodySans = Rajdhani({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-ancient-sans",
+});
+
+const statMono = ShareTechMono({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-ancient-mono",
 });
 
 export const metadata: Metadata = {
@@ -25,9 +38,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${displaySerif.variable} ${bodySans.variable} ${statMono.variable} antialiased`}
       >
         {children}
+        <Toaster />
       </body>
     </html>
   );

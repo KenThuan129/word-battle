@@ -1,13 +1,15 @@
-'use client';
+'use client'
 
-import React from 'react';
-import { Board, Position } from '@/types';
+import React from "react"
+
+import { cn } from "@/lib/utils"
+import { Board, Position } from "@/types"
 
 interface GameBoardProps {
-  board: Board;
-  onCellClick?: (position: Position) => void;
-  selectedCells?: Position[];
-  disabled?: boolean;
+  board: Board
+  onCellClick?: (position: Position) => void
+  selectedCells?: Position[]
+  disabled?: boolean
 }
 
 export default function GameBoard({
@@ -16,63 +18,106 @@ export default function GameBoard({
   selectedCells = [],
   disabled = false,
 }: GameBoardProps) {
+  const boardWidth = board.width || board.size
+  const boardHeight = board.height || board.size
   const isSelected = (row: number, col: number): boolean => {
-    return selectedCells.some(pos => pos.row === row && pos.col === col);
-  };
+    return selectedCells.some((pos) => pos.row === row && pos.col === col)
+  }
+
+  const hasCorruptedSquares = board.cells.some((row) =>
+    row.some((cell) => cell.isCorrupted)
+  )
 
   const getCellClasses = (row: number, col: number) => {
-    const cell = board.cells[row][col];
-    const selected = isSelected(row, col);
-    const center = cell.isCenter;
-    const hasLetter = cell.letter !== null;
-    const newlyPlaced = cell.isNewlyPlaced;
+    const cell = board.cells[row][col]
+    const selected = isSelected(row, col)
+    const center = cell.isCenter
+    const hasLetter = cell.letter !== null
+    const newlyPlaced = cell.isNewlyPlaced
+    const corrupted = cell.isCorrupted
 
-    return `
-      w-12 h-12 border-2 rounded-md
-      flex items-center justify-center
-      font-bold text-lg
-      transition-all duration-200
-      ${center ? 'bg-yellow-100 dark:bg-yellow-900 border-yellow-500' : ''}
-      ${hasLetter ? 'bg-blue-50 dark:bg-blue-900 border-blue-300 dark:border-blue-700' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'}
-      ${selected ? 'ring-4 ring-blue-500 dark:ring-blue-400' : ''}
-      ${newlyPlaced ? 'animate-pulse bg-green-100 dark:bg-green-900' : ''}
-      ${!disabled && onCellClick ? 'cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-800' : ''}
-      ${disabled ? 'cursor-not-allowed opacity-75' : ''}
-    `;
-  };
+    return cn(
+      "board-tile",
+      center && !corrupted && "board-tile--center",
+      hasLetter && "board-tile--occupied",
+      selected && "board-tile--selected",
+      newlyPlaced && "board-tile--new",
+      corrupted && "board-tile--corrupted",
+      !disabled && onCellClick && "board-tile--interactive",
+      disabled && "board-tile--disabled"
+    )
+  }
+
+  const renderEmptyGlyph = (cell: Board["cells"][number][number]) => {
+    if (cell.isCorrupted) return "✖"
+    if (cell.isCenter) return "★"
+    return "·"
+  }
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="grid grid-cols-8 gap-1 p-4 bg-gray-100 dark:bg-gray-900 rounded-lg shadow-lg">
-        {board.cells.map((row, rowIdx) =>
-          row.map((cell, colIdx) => (
-            <div
-              key={`${rowIdx}-${colIdx}`}
-              className={getCellClasses(rowIdx, colIdx)}
-              onClick={() => !disabled && onCellClick?.({ row: rowIdx, col: colIdx })}
-              title={cell.isCenter ? 'Center' : ''}
-            >
-              {cell.letter ? (
-                <div className="flex flex-col items-center">
-                  <span className="text-xl">{cell.letter.char}</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {cell.letter.points}
-                  </span>
-                </div>
-              ) : (
-                <span className="text-gray-400 dark:text-gray-600 text-xs">
-                  {cell.isCenter ? '★' : ''}
-                </span>
-              )}
-            </div>
-          ))
+    <div className="board-shell">
+      <div className="board-surface" data-disabled={disabled}>
+        <div
+          className="board-surface__grid"
+          style={{ gridTemplateColumns: `repeat(${boardWidth}, minmax(0, 1fr))` }}
+        >
+          {board.cells.slice(0, boardHeight).map((row, rowIdx) =>
+            row.slice(0, boardWidth).map((cell, colIdx) => (
+              <div
+                key={`${rowIdx}-${colIdx}`}
+                className={getCellClasses(rowIdx, colIdx)}
+                onClick={() =>
+                  !disabled && onCellClick?.({ row: rowIdx, col: colIdx })
+                }
+                aria-label={
+                  cell.letter
+                    ? `${cell.letter.char} worth ${cell.letter.points} points`
+                    : cell.isCenter
+                      ? "Center sigil"
+                      : cell.isCorrupted
+                        ? "Corrupted tile"
+                        : "Empty tile"
+                }
+              >
+                {cell.letter ? (
+                  <div
+                    className="tile-letter"
+                    style={{
+                      boxShadow: `0 0 ${Math.min(
+                        18,
+                        4 + (cell.letter.points ?? 1) * 1.25
+                      )}px rgba(255, 179, 0, 0.45)`,
+                    }}
+                  >
+                    <span className="tile-letter__char">{cell.letter.char}</span>
+                    <span className="tile-letter__points">
+                      {cell.letter.points}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="tile-glyph">{renderEmptyGlyph(cell)}</span>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+        <span className="board-surface__glyph glyph--tl" aria-hidden="true" />
+        <span className="board-surface__glyph glyph--br" aria-hidden="true" />
+      </div>
+
+      <div className="board-legend">
+        <div className="board-legend__item">
+          <span className="board-legend__swatch board-legend__swatch--center" />
+          Center sigil
+        </div>
+        {hasCorruptedSquares && (
+          <div className="board-legend__item">
+            <span className="board-legend__swatch board-legend__swatch--corrupted" />
+            Corrupted (blocked)
+          </div>
         )}
       </div>
-      <div className="text-sm text-gray-600 dark:text-gray-400">
-        <span className="inline-block w-3 h-3 bg-yellow-100 dark:bg-yellow-900 border-yellow-500 border-2 rounded mr-1"></span>
-        Center
-      </div>
     </div>
-  );
+  )
 }
 

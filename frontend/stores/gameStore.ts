@@ -13,11 +13,14 @@ import {
   LETTER_CONFIG,
   placeStartingWord,
   calculateDamage,
+  markCorruptedSquares,
+  doesBoardContainWord,
 } from '@/lib/gameEngine';
 import { isValidWord } from '@/lib/dictionary';
 import { calculateAIMove, AI_CONFIGS } from '@/lib/aiEngine';
 import { checkWinCondition } from '@/lib/gameEngine';
 import { getLevel } from '@/lib/journeyLevels';
+import { addWordToBank } from '@/lib/wordBankUtils';
 
 interface StartGameOptions {
   journeyLevelId?: number;
@@ -41,6 +44,7 @@ interface GameStore {
   clearMove: () => void;
   submitMove: () => Promise<{ success: boolean; error?: string }>;
   makeAIMove: () => Promise<void>;
+  exchangeVowel: () => { success: boolean; error?: string };
   endGame: () => void;
 }
 
@@ -170,14 +174,84 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const aiId = 'ai-1';
     const isBeginnerJourney = mode === 'journey' && options?.journeyLevelId && options.journeyLevelId <= 3;
     
+    // Get level config for special mechanics
+    const levelConfig = mode === 'journey' && options?.journeyLevelId 
+      ? getLevel(options.journeyLevelId) 
+      : null;
+    
+    // Check if level has AI (defaults to true for backward compatibility)
+    const hasAI = levelConfig?.hasAI !== false;
+    
+    // Create board with custom size if specified
+    const boardWidth = levelConfig?.boardWidth;
+    const boardHeight = levelConfig?.boardHeight;
+    let initialBoard = createEmptyBoard(boardWidth, boardHeight);
+    
+    // For Level 3, place "RACING" on the board at start
+    if (options?.journeyLevelId === 3) {
+      initialBoard = placeStartingWord(initialBoard, 'RACING');
+    }
+    
+    // Place level-specific starting word if defined (e.g., Level 6, 7)
+    if (levelConfig?.startingWord) {
+      initialBoard = placeStartingWord(initialBoard, levelConfig.startingWord);
+    }
+    
+    // For Level 7, mark 3 random squares as corrupted
+    if (options?.journeyLevelId === 7) {
+      const boardW = initialBoard.width || initialBoard.size;
+      const boardH = initialBoard.height || initialBoard.size;
+      const corruptedSquares: Position[] = [];
+      const usedPositions = new Set<string>();
+      
+      // Randomly select 3 non-center, non-occupied squares
+      while (corruptedSquares.length < 3) {
+        const row = Math.floor(Math.random() * boardH);
+        const col = Math.floor(Math.random() * boardW);
+        const posKey = `${row},${col}`;
+        const cell = initialBoard.cells[row][col];
+        
+        // Skip if already used, is center, or has a letter
+        if (!usedPositions.has(posKey) && !cell.isCenter && !cell.letter) {
+          corruptedSquares.push({ row, col });
+          usedPositions.add(posKey);
+        }
+      }
+      
+      initialBoard = markCorruptedSquares(initialBoard, corruptedSquares);
+    }
+    
     let playerHand = drawLetters(10, shuffled);
     const needsGuarantee = Math.random() < 0.45;
     if (isBeginnerJourney && (needsGuarantee || !hasBeginnerWord(playerHand))) {
       playerHand = injectBeginnerWord(playerHand);
     }
     
+    // For Level 7, boost S, T, R, A letters for first 3 turns
+    if (options?.journeyLevelId === 7 && levelConfig?.specialLetterDistribution) {
+      const { letters, turns } = levelConfig.specialLetterDistribution;
+      // Replace some letters in hand with boosted letters (higher chance)
+      const boostedLetters = letters.map(char => ({
+        char,
+        points: LETTER_CONFIG[char]?.points || 1,
+      }));
+      
+      // Replace 3-4 random letters with boosted letters
+      const numReplacements = Math.min(4, playerHand.length);
+      for (let i = 0; i < numReplacements; i++) {
+        const randomIndex = Math.floor(Math.random() * playerHand.length);
+        const randomBoosted = boostedLetters[Math.floor(Math.random() * boostedLetters.length)];
+        playerHand[randomIndex] = randomBoosted;
+      }
+    }
+    
     // Check if boss battle (levels 5 or 10)
     const isBossBattle = options?.journeyLevelId === 5 || options?.journeyLevelId === 10;
+    
+    // Set AI HP based on level: Level 5 = 65 HP, Level 10 = 75 HP
+    const aiHp = isBossBattle 
+      ? (options.journeyLevelId === 5 ? 65 : options.journeyLevelId === 10 ? 75 : 200)
+      : undefined;
     
     const player: Player = {
       id: playerId,
@@ -188,33 +262,32 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isAI: false,
     };
     
-    let aiHand = drawLetters(10, shuffled);
-    if (isBeginnerJourney) {
-      aiHand = softenAIHand(aiHand);
-    }
+    const players: Player[] = [player];
     
-    const ai: Player = {
-      id: aiId,
-      name: `AI (${aiDifficulty})`,
-      hand: aiHand,
-      score: 0,
-      hp: isBossBattle ? 200 : undefined,
-      isAI: true,
-      aiDifficulty,
-    };
-    
-    let initialBoard = createEmptyBoard();
-    
-    // For Level 3, place "RACING" on the board at start
-    if (options?.journeyLevelId === 3) {
-      initialBoard = placeStartingWord(initialBoard, 'RACING');
+    // Only add AI if level has AI
+    if (hasAI) {
+      let aiHand = drawLetters(10, shuffled);
+      if (isBeginnerJourney) {
+        aiHand = softenAIHand(aiHand);
+      }
+      
+      const ai: Player = {
+        id: aiId,
+        name: `AI (${aiDifficulty})`,
+        hand: aiHand,
+        score: 0,
+        hp: aiHp,
+        isAI: true,
+        aiDifficulty,
+      };
+      players.push(ai);
     }
     
     const game: GameState = {
       id: `game-${Date.now()}`,
       mode,
       board: initialBoard,
-      players: [player, ai],
+      players,
       currentPlayerId: playerId,
       turn: 1,
       status: 'playing',
@@ -272,15 +345,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
     } else {
       // Add letter if we haven't used all selected letters yet
       const newIndices = [...currentMove.selectedLetterIndices, index];
-      const newWord = newIndices.map(i => currentPlayer.hand[i].char).join('');
+      
+      // If we have board letters in the word, we need to append the hand letter to the existing word
+      // Otherwise, build word from scratch from selected hand letters
+      let newWord: string;
+      if (currentMove.positions.length > 0 && currentMove.word.length === currentMove.positions.length) {
+        // We have board letters only - append hand letter to extend the word
+        newWord = currentMove.word + letter.char;
+      } else {
+        // Build word from selected hand letters
+        newWord = newIndices.map(i => currentPlayer.hand[i].char).join('');
+      }
       
       set({
         currentMove: {
           ...currentMove,
           word: newWord,
           selectedLetterIndices: newIndices,
-          // Clear positions if word changed
-          positions: currentMove.positions.slice(0, newWord.length),
+          // Don't clear positions if we're extending board letters
+          // Only adjust positions if word is shorter than positions
+          positions: currentMove.positions.length <= newWord.length 
+            ? currentMove.positions 
+            : currentMove.positions.slice(0, newWord.length),
         },
       });
     }
@@ -448,12 +534,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
     
     // Cell is empty - need letter from hand
-    if (activeMove.word.length === activeMove.positions.length) {
-      if (activeMove.selectedLetterIndices.length === 0) {
-        return; // Need to select letter from hand first
+    // Allow placing if:
+    // 1. We have selected letters from hand that haven't been placed yet (word.length > positions.length), OR
+    // 2. We have board letters and have selected a letter from hand to extend (selectedLetterIndices.length > 0)
+    const hasUnplacedHandLetters = activeMove.word.length > activeMove.positions.length;
+    const hasSelectedHandLetter = activeMove.selectedLetterIndices.length > 0;
+    const hasBoardLetters = activeMove.positions.length > 0;
+    
+    // Must have either unplaced hand letters OR (board letters + selected hand letter to extend)
+    if (!hasUnplacedHandLetters) {
+      if (!hasSelectedHandLetter || !hasBoardLetters) {
+        // Need to select a letter from hand first if we have board letters
+        // OR need to have something selected if we don't have board letters
+        if (activeMove.selectedLetterIndices.length === 0 && activeMove.positions.length === 0) {
+          return; // Nothing selected yet
+        }
+        if (hasBoardLetters && !hasSelectedHandLetter) {
+          return; // Have board letters but no hand letter selected to extend
+        }
       }
-    } else if (activeMove.selectedLetterIndices.length === 0) {
-      return;
     }
     
     // Validate position is adjacent to last position and follows direction
@@ -531,6 +630,70 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ currentMove: null });
   },
   
+  exchangeVowel: () => {
+    const { game } = get();
+    if (!game) {
+      return { success: false, error: 'No game active' };
+    }
+    
+    const currentPlayer = game.players.find(p => p.id === game.currentPlayerId);
+    if (!currentPlayer || currentPlayer.isAI) {
+      return { success: false, error: 'Not your turn' };
+    }
+    
+    // Find first consonant in hand
+    const vowels = ['A', 'E', 'I', 'O', 'U'];
+    const consonantIndex = currentPlayer.hand.findIndex(
+      letter => !vowels.includes(letter.char.toUpperCase())
+    );
+    
+    if (consonantIndex === -1) {
+      return { success: false, error: 'No consonants in hand to exchange' };
+    }
+    
+    // Weighted random vowel selection
+    // E: 45% chance, A/I/O: 15% each, U: 10% chance
+    const random = Math.random();
+    let newVowel: string;
+    if (random < 0.45) {
+      newVowel = 'E';
+    } else if (random < 0.60) {
+      newVowel = 'A';
+    } else if (random < 0.75) {
+      newVowel = 'I';
+    } else if (random < 0.90) {
+      newVowel = 'O';
+    } else {
+      newVowel = 'U';
+    }
+    
+    // Get points for the new vowel from LETTER_CONFIG
+    const vowelPoints = LETTER_CONFIG[newVowel]?.points || 1;
+    
+    // Replace consonant with vowel
+    const newHand = [...currentPlayer.hand];
+    newHand[consonantIndex] = {
+      char: newVowel,
+      points: vowelPoints,
+    };
+    
+    // Update player's hand
+    const updatedPlayers = game.players.map(p => 
+      p.id === currentPlayer.id 
+        ? { ...p, hand: newHand }
+        : p
+    );
+    
+    set({
+      game: {
+        ...game,
+        players: updatedPlayers,
+      },
+    });
+    
+    return { success: true };
+  },
+  
   submitMove: async () => {
     const { game, currentMove } = get();
     if (!game || !currentMove) {
@@ -555,6 +718,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         targetScore: levelConfig.targetScore,
         targetWordCount: levelConfig.targetWordCount,
         turnLimit: levelConfig.turnLimit,
+        targetWord: levelConfig.targetWord,
       } : undefined;
       const winCheck = checkWinCondition(game, levelForWinCheck, game.journeyLevelId);
       if (winCheck.finished) {
@@ -624,12 +788,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Update word count for level 1
     const newWordCount = (game.wordCount || 0) + 1;
     
+    // Replenish hand to maintain 10 letters after move
+    const targetHandSize = 10;
+    const lettersNeeded = Math.max(0, targetHandSize - newHand.length);
+    let replenishedHand = [...newHand];
+    
+    if (lettersNeeded > 0) {
+      const distribution = createLetterDistribution();
+      const newLetters = drawNewLetters(lettersNeeded, distribution);
+      replenishedHand = [...newHand, ...newLetters];
+    }
+    
     // Boss battle: Calculate damage and apply to opponent
     let updatedPlayers = game.players.map(p => {
       if (p.id === currentPlayer.id) {
         return {
           ...p,
-          hand: newHand,
+          hand: replenishedHand,
           score: p.score + score,
         };
       }
@@ -718,12 +893,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
       
       set({ game: finalGame, currentMove: null });
       
+      // Add word to word bank (only for player moves, not AI)
+      addWordToBank(move.word, score, true).catch(error => {
+        console.error('Error adding word to bank:', error);
+      });
+      
+      // For Level 7, check if target word "STARS" was built in this move or exists on the board
+      if (game.journeyLevelId === 7 && levelConfig?.targetWord) {
+        const moveBuiltTargetWord = move.word.toUpperCase() === levelConfig.targetWord.toUpperCase();
+        const hasTargetWord = moveBuiltTargetWord || doesBoardContainWord(newBoard, levelConfig.targetWord);
+        
+        if (hasTargetWord) {
+          set({
+            game: {
+              ...finalGame,
+              status: 'finished',
+              winnerId: currentPlayer.id,
+            },
+            currentMove: null,
+          });
+          return { success: true };
+        }
+      }
+      
       // Check win condition after player move
       const levelForWinCheck = levelConfig ? {
         baseObjective: levelConfig.baseObjective,
         targetScore: levelConfig.targetScore,
         targetWordCount: levelConfig.targetWordCount,
         turnLimit: levelConfig.turnLimit,
+        targetWord: levelConfig.targetWord,
       } : undefined;
       const winCheck = checkWinCondition(finalGame, levelForWinCheck, game.journeyLevelId);
       if (winCheck.finished) {
@@ -735,6 +934,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
           },
         });
         return { success: true };
+      }
+      
+      // If it's AI's turn, trigger AI move after a short delay
+      const aiPlayer = finalGame.players.find(p => p.id === finalGame.currentPlayerId && p.isAI);
+      if (aiPlayer) {
+        setTimeout(() => {
+          get().makeAIMove();
+        }, 1000); // 1 second delay for AI thinking
       }
       
       // Continue with normal flow for boss battles
@@ -758,12 +965,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
     
     set({ game: updatedGame, currentMove: null });
     
+    // Add word to word bank (only for player moves, not AI)
+    addWordToBank(move.word, score, true).catch(error => {
+      console.error('Error adding word to bank:', error);
+    });
+
+    // For Level 7, check if target word "STARS" exists anywhere on the board
+    if (game.journeyLevelId === 7 && levelConfig?.targetWord) {
+      const moveBuiltTargetWord = move.word.toUpperCase() === levelConfig.targetWord.toUpperCase();
+      const hasTargetWord = moveBuiltTargetWord || doesBoardContainWord(newBoard, levelConfig.targetWord);
+
+      if (hasTargetWord) {
+        set({
+          game: {
+            ...updatedGame,
+            status: 'finished',
+            winnerId: currentPlayer.id,
+          },
+          currentMove: null,
+        });
+        return { success: true };
+      }
+    }
+    
     // Check win condition after player move
     const levelForWinCheck = levelConfig ? {
       baseObjective: levelConfig.baseObjective,
       targetScore: levelConfig.targetScore,
       targetWordCount: levelConfig.targetWordCount,
       turnLimit: levelConfig.turnLimit,
+      targetWord: levelConfig.targetWord,
     } : undefined;
     const winCheck = checkWinCondition(updatedGame, levelForWinCheck, game.journeyLevelId);
     if (winCheck.finished) {
@@ -777,39 +1008,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return { success: true };
     }
     
-    // Draw new letters after every 2 turns (for both players)
-    if (updatedGame.turn % 2 === 0) {
-      const distribution = createLetterDistribution();
-      const updatedWithNewLetters = updatedGame.players.map(player => {
-        const newLetters = drawNewLetters(5, distribution);
-        return {
-          ...player,
-          hand: [...player.hand, ...newLetters],
-        };
-      });
-      
-      const gameWithNewLetters = {
-        ...updatedGame,
-        players: updatedWithNewLetters,
-      };
-      
-      set({ game: gameWithNewLetters });
-      
-      // If it's AI's turn, trigger AI move after a short delay
-      const aiPlayer = gameWithNewLetters.players.find(p => p.id === gameWithNewLetters.currentPlayerId && p.isAI);
-      if (aiPlayer) {
-        setTimeout(() => {
-          get().makeAIMove();
-        }, 1000); // 1 second delay for AI thinking
-      }
-    } else {
-      // If it's AI's turn, trigger AI move after a short delay
-      const aiPlayer = updatedGame.players.find(p => p.id === updatedGame.currentPlayerId && p.isAI);
-      if (aiPlayer) {
-        setTimeout(() => {
-          get().makeAIMove();
-        }, 1000); // 1 second delay for AI thinking
-      }
+    // If it's AI's turn, trigger AI move after a short delay
+    const aiPlayer = updatedGame.players.find(p => p.id === updatedGame.currentPlayerId && p.isAI);
+    if (aiPlayer) {
+      setTimeout(() => {
+        get().makeAIMove();
+      }, 1000); // 1 second delay for AI thinking
     }
     
     return { success: true };
@@ -902,12 +1106,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Check if boss battle
     const isBossBattle = game.journeyLevelId === 5 || game.journeyLevelId === 10;
     
+    // Replenish AI hand to maintain 10 letters after move
+    const targetHandSize = 10;
+    const lettersNeeded = Math.max(0, targetHandSize - newHand.length);
+    let replenishedHand = [...newHand];
+    
+    if (lettersNeeded > 0) {
+      const distribution = createLetterDistribution();
+      const newLetters = drawNewLetters(lettersNeeded, distribution);
+      replenishedHand = [...newHand, ...newLetters];
+    }
+    
     // Update game state
     let updatedPlayers = game.players.map(p => {
       if (p.id === aiPlayer.id) {
         return {
           ...p,
-          hand: newHand,
+          hand: replenishedHand,
           score: p.score + score,
         };
       }
@@ -947,24 +1162,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     
     set({ game: updatedGame });
     
-    // Draw new letters after every 2 turns
-    if (updatedGame.turn % 2 === 0) {
-      const distribution = createLetterDistribution();
-      const updatedWithNewLetters = updatedGame.players.map(player => {
-        const newLetters = drawNewLetters(5, distribution);
-        return {
-          ...player,
-          hand: [...player.hand, ...newLetters],
-        };
-      });
-      
-      const gameWithNewLetters = {
-        ...updatedGame,
-        players: updatedWithNewLetters,
-      };
-      
-      set({ game: gameWithNewLetters });
-    }
+    // Add AI's word to word bank (so player can learn from AI moves, but don't show toast)
+    addWordToBank(aiMove.word, score, false).catch(error => {
+      console.error('Error adding AI word to bank:', error);
+    });
+    
+    // Hand replenishment is now done after each move, so no need for periodic replenishment
     
     // Check win condition after AI move
     const levelForWinCheck = levelConfigForAI ? {

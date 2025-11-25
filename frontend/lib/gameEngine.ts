@@ -7,6 +7,13 @@ const BOARD_SIZE = 8;
 const CENTER_ROW = Math.floor(BOARD_SIZE / 2);
 const CENTER_COL = Math.floor(BOARD_SIZE / 2);
 
+export function getBoardDimensions(width?: number, height?: number): { width: number; height: number } {
+  return {
+    width: width || BOARD_SIZE,
+    height: height || BOARD_SIZE,
+  };
+}
+
 // Letter distribution based on English frequency
 export const LETTER_CONFIG: Record<string, { count: number; points: number }> = {
   A: { count: 9, points: 1 },   B: { count: 2, points: 3 },
@@ -24,38 +31,49 @@ export const LETTER_CONFIG: Record<string, { count: number; points: number }> = 
   Y: { count: 2, points: 4 },   Z: { count: 1, points: 10 },
 };
 
-export function createEmptyBoard(): Board {
+export function createEmptyBoard(width?: number, height?: number): Board {
+  const dims = getBoardDimensions(width, height);
+  const centerRow = Math.floor(dims.height / 2);
+  const centerCol = Math.floor(dims.width / 2);
+  
   const cells: Cell[][] = [];
-  for (let row = 0; row < BOARD_SIZE; row++) {
+  for (let row = 0; row < dims.height; row++) {
     cells[row] = [];
-    for (let col = 0; col < BOARD_SIZE; col++) {
+    for (let col = 0; col < dims.width; col++) {
       cells[row][col] = {
         letter: null,
-        isCenter: row === CENTER_ROW && col === CENTER_COL,
+        isCenter: row === centerRow && col === centerCol,
         isNewlyPlaced: false,
       };
     }
   }
-  return { cells, size: BOARD_SIZE };
+  return { 
+    cells, 
+    size: Math.max(dims.width, dims.height), // For backward compatibility
+    width: dims.width,
+    height: dims.height,
+  };
 }
 
 /**
- * Places the word "RACING" horizontally on the board passing through center
- * Used for Level 3 start
+ * Places a starting word horizontally on the board passing through center
+ * Used for Level 3 (RACING) and Level 6 (EMISSION)
  */
 export function placeStartingWord(board: Board, word: string): Board {
   const newBoard = JSON.parse(JSON.stringify(board)) as Board;
-  const centerRow = CENTER_ROW;
-  const centerCol = CENTER_COL;
+  const boardWidth = board.width || board.size;
+  const boardHeight = board.height || board.size;
+  const centerRow = Math.floor(boardHeight / 2);
+  const centerCol = Math.floor(boardWidth / 2);
   
   // Place word horizontally, ensuring it passes through the center
-  // "RACING" has 6 letters (R-A-C-I-N-G)
-  // We want center at position 3 (the 'C'), so start at col 1
-  const startCol = centerCol - 2; // Center is at index 2 of "RACING" (the 'C')
+  // Find the center letter index (middle of the word)
+  const centerLetterIndex = Math.floor(word.length / 2);
+  const startCol = centerCol - centerLetterIndex;
   
   for (let i = 0; i < word.length; i++) {
     const col = startCol + i;
-    if (col >= 0 && col < BOARD_SIZE) {
+    if (col >= 0 && col < boardWidth && centerRow >= 0 && centerRow < boardHeight) {
       const char = word[i].toUpperCase();
       const letterConfig = LETTER_CONFIG[char];
       if (letterConfig) {
@@ -72,6 +90,83 @@ export function placeStartingWord(board: Board, word: string): Board {
   }
   
   return newBoard;
+}
+
+/**
+ * Marks squares as corrupted (cannot place letters on them)
+ * Used for Level 7
+ */
+export function markCorruptedSquares(board: Board, positions: Position[]): Board {
+  const newBoard = JSON.parse(JSON.stringify(board)) as Board;
+  const boardWidth = board.width || board.size;
+  const boardHeight = board.height || board.size;
+  
+  for (const pos of positions) {
+    if (pos.row >= 0 && pos.row < boardHeight && pos.col >= 0 && pos.col < boardWidth) {
+      newBoard.cells[pos.row][pos.col] = {
+        ...newBoard.cells[pos.row][pos.col],
+        isCorrupted: true,
+      };
+    }
+  }
+  
+  return newBoard;
+}
+
+/**
+ * Checks if a given word exists on the board in a straight line
+ * Used for Level 7 objective (build "STARS")
+ */
+export function doesBoardContainWord(board: Board, word: string): boolean {
+  if (!word) {
+    return false;
+  }
+
+  const target = word.toUpperCase();
+  const length = target.length;
+  const width = board.width || board.size;
+  const height = board.height || board.size;
+
+  for (let row = 0; row < height; row++) {
+    for (let col = 0; col < width; col++) {
+      const cellChar = board.cells[row][col].letter?.char?.toUpperCase();
+      if (cellChar !== target[0]) {
+        continue;
+      }
+
+      // Check horizontally
+      if (col + length <= width) {
+        let matches = true;
+        for (let i = 0; i < length; i++) {
+          const char = board.cells[row][col + i].letter?.char?.toUpperCase();
+          if (char !== target[i]) {
+            matches = false;
+            break;
+          }
+        }
+        if (matches) {
+          return true;
+        }
+      }
+
+      // Check vertically
+      if (row + length <= height) {
+        let matches = true;
+        for (let i = 0; i < length; i++) {
+          const char = board.cells[row + i][col].letter?.char?.toUpperCase();
+          if (char !== target[i]) {
+            matches = false;
+            break;
+          }
+        }
+        if (matches) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -568,6 +663,14 @@ export function validateMove(
   isValidWord: (word: string) => boolean,
   allowGaps: boolean = false
 ): { valid: boolean; error?: string } {
+  // Check for corrupted squares (Level 7)
+  for (const pos of move.positions) {
+    const cell = board.cells[pos.row]?.[pos.col];
+    if (cell?.isCorrupted) {
+      return { valid: false, error: 'Cannot place letters on corrupted squares' };
+    }
+  }
+  
   // Validate positions form a continuous line in one direction
   const sequenceValidation = validatePositionSequence(move.positions, board, allowGaps);
   if (!sequenceValidation.valid) {
@@ -732,7 +835,7 @@ export function applyMove(board: Board, move: Move, playerHand: Letter[]): {
 
 export function checkWinCondition(
   game: GameState, 
-  level?: { baseObjective: string; targetScore?: number; targetWordCount?: number; turnLimit?: number },
+  level?: { baseObjective: string; targetScore?: number; targetWordCount?: number; turnLimit?: number; targetWord?: string },
   levelId?: number
 ): {
   finished: boolean;
@@ -771,6 +874,51 @@ export function checkWinCondition(
     const player = players.find(p => !p.isAI);
     const ai = players.find(p => p.isAI);
     
+    // Level 7: Check if target word "STARS" exists anywhere on the board or in history
+    if (levelId === 7 && level.baseObjective === 'build_word' && level.targetWord) {
+      const historyHasWord = game.turnHistory.some(move => 
+        move.word.toUpperCase() === level.targetWord!.toUpperCase()
+      );
+      if ((historyHasWord || doesBoardContainWord(game.board, level.targetWord)) && player) {
+        return {
+          finished: true,
+          winnerId: player.id,
+          reason: 'target_word_built',
+        };
+      }
+    }
+    
+    // No-AI levels (6, 7): Only check player
+    if ((levelId === 6 || levelId === 7) && !ai) {
+      if (!player) {
+        return { finished: false };
+      }
+      
+      // Level 6: Score-based win condition at turn limit
+      if (levelId === 6 && level.turnLimit && game.turn >= level.turnLimit) {
+        // Player always wins if they reached turn limit (score determines stars)
+        return {
+          finished: true,
+          winnerId: player.id,
+          reason: 'turn_limit_reached',
+        };
+      }
+      
+      // Level 7: Already handled above (target word check)
+      // If turn limit reached without building word, player loses
+      if (levelId === 7 && level.turnLimit && game.turn >= level.turnLimit) {
+        // No winner - player failed to build target word
+        return {
+          finished: true,
+          winnerId: undefined,
+          reason: 'turn_limit_reached_no_winner',
+        };
+      }
+      
+      return { finished: false };
+    }
+    
+    // Levels with AI (8, 9): Check both player and AI
     if (!player || !ai) {
       return { finished: false };
     }
@@ -805,7 +953,25 @@ export function checkWinCondition(
         break;
     }
     
-    // Default win condition: Game ends when turn 10 is reached AND 1-star objective is met
+    // Levels 8 & 9: Score-based win condition at turn limit
+    if ((levelId === 8 || levelId === 9) && level.turnLimit && game.turn >= level.turnLimit) {
+      // Player wins if they have higher score, otherwise AI wins
+      if (player.score > ai.score) {
+        return {
+          finished: true,
+          winnerId: player.id,
+          reason: 'turn_limit_reached',
+        };
+      } else {
+        return {
+          finished: true,
+          winnerId: ai.id,
+          reason: 'turn_limit_reached',
+        };
+      }
+    }
+    
+    // Default win condition: Game ends when turn limit is reached AND 1-star objective is met
     if (level.turnLimit && game.turn >= level.turnLimit) {
       // Check if player met 1-star objective
       let oneStarMet = false;

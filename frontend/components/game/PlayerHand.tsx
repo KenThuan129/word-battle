@@ -1,57 +1,74 @@
-'use client';
+'use client'
 
-import React, { useState } from 'react';
-import { Letter, Position } from '@/types';
+import React from "react"
+import { AnimatePresence, motion } from "framer-motion"
+
+import { cn } from "@/lib/utils"
+import { Letter } from "@/types"
 
 interface PlayerHandProps {
-  letters: Letter[];
-  onLetterSelect?: (letter: Letter, index: number) => void;
-  selectedIndices?: number[];
-  disabled?: boolean;
-  title?: string;
+  letters: Letter[]
+  onLetterSelect?: (letter: Letter, index: number) => void
+  selectedIndices?: number[]
+  disabled?: boolean
+  title?: string
 }
+
+const MotionButton = motion.button
 
 export default function PlayerHand({
   letters,
   onLetterSelect,
   selectedIndices = [],
   disabled = false,
-  title = 'Your Hand',
+  title = "Your Hand",
 }: PlayerHandProps) {
   const isSelected = (index: number): boolean => {
-    return selectedIndices.includes(index);
-  };
+    return selectedIndices.includes(index)
+  }
 
   return (
-    <div className="flex flex-col gap-2">
-      <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-        {title} ({letters.length} letters)
-      </h3>
-      <div className="flex flex-wrap gap-2 justify-center">
-        {letters.map((letter, index) => (
-          <button
-            key={index}
-            disabled={disabled}
-            onClick={() => !disabled && onLetterSelect?.(letter, index)}
-            className={`
-              w-14 h-14 flex flex-col items-center justify-center
-              rounded-lg border-2 font-bold text-lg
-              transition-all duration-200
-              ${isSelected(index)
-                ? 'bg-blue-500 text-white border-blue-600 ring-4 ring-blue-300 dark:ring-blue-700'
-                : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600'
-              }
-              ${!disabled && onLetterSelect ? 'cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900 hover:scale-110' : ''}
-              ${disabled ? 'cursor-not-allowed opacity-50' : ''}
-              shadow-md hover:shadow-lg
-            `}
-          >
-            <span>{letter.char}</span>
-            <span className="text-xs">{letter.points}</span>
-          </button>
-        ))}
+    <div className="player-hand">
+      <div className="player-hand__header">
+        <h3>
+          {title} <span>({letters.length})</span>
+        </h3>
+      </div>
+
+      <div className="player-hand__grid">
+        <AnimatePresence initial={false}>
+          {letters.map((letter, index) => {
+            const selected = isSelected(index)
+            return (
+              <MotionButton
+                key={`${letter.char}-${index}`}
+                layout
+                layoutId={`${letter.char}-${index}`}
+                disabled={disabled}
+                onClick={() => !disabled && onLetterSelect?.(letter, index)}
+                className={cn("runestone", selected && "runestone--selected")}
+                aria-pressed={selected}
+                aria-label={`${letter.char} worth ${letter.points} points`}
+                whileHover={{
+                  scale: disabled ? 1 : 1.08,
+                  boxShadow: disabled ? "none" : "var(--glow-cyan)",
+                }}
+                whileTap={{ scale: disabled ? 1 : 0.96 }}
+                initial={{ opacity: 0, y: 12, rotateX: -10 }}
+                animate={{ opacity: 1, y: 0, rotateX: 0 }}
+                exit={{ opacity: 0, y: -12, rotateX: 10 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+                data-value={letter.points}
+              >
+                <span className="runestone__char">{letter.char}</span>
+                <span className="runestone__value">{letter.points}</span>
+                <span className="runestone__trail" aria-hidden="true" />
+              </MotionButton>
+            )
+          })}
+        </AnimatePresence>
       </div>
     </div>
-  );
+  )
 }
 

@@ -1,79 +1,105 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link"
+
+import { QuickPlayButton } from "@/components/landing/QuickPlayButton"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+
+const modeCards = [
+  {
+    title: "Journey Mode",
+    glyph: "⟁",
+    description: "Story-driven trials across ancient tech ruins.",
+    action: "Begin Journey",
+    href: "/journey",
+    accent: "amber",
+  },
+  {
+    title: "PvE Arena",
+    glyph: "⚔",
+    description: "Battle adaptive guardians with scaling AI.",
+    action: "Enter Arena",
+    href: "/arena",
+    accent: "cyan",
+  },
+  {
+    title: "Daily Challenges",
+    glyph: "✦",
+    description: "Three rotating puzzles reward mastery keys.",
+    action: "View Challenges",
+    href: "/daily",
+    accent: "verdigris",
+  },
+  {
+    title: "Word Bank",
+    glyph: "⌘",
+    description: "Curate discovered vocabulary & lore.",
+    action: "Open Codex",
+    href: "/wordbank",
+    accent: "purple",
+  },
+]
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-      <main className="container mx-auto px-4 py-16">
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            Word Battle
+    <div className="ancient-landing">
+      <div className="ancient-landing__layers" aria-hidden="true">
+        <span className="ancient-landing__fragment fragment--left" />
+        <span className="ancient-landing__fragment fragment--right" />
+        <span className="ancient-landing__stars" />
+      </div>
+
+      <main className="ancient-shell">
+        <section className="ancient-hero">
+          <p className="ancient-hero__tag">Arcane Lexicon Interface v2.0</p>
+          <h1 className="ancient-title">
+            Word <span>Battle</span>
           </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-            A vocabulary-learning word-building strategy game. Compete against AI opponents on an 8×8 grid,
-            placing words crossword-style.
+          <p className="ancient-hero__subtitle">
+            Unlock forgotten dialects carved into bronze tablets while wielding
+            neon circuitry. Choose your mode, channel the sigils, and conquer
+            the board.
           </p>
-        </div>
+        </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto mb-12">
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle>🎯 Journey Mode</CardTitle>
-              <CardDescription>Campaign with story-driven vocabulary learning</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href="/journey">
-                <Button className="w-full">Start Journey</Button>
-              </Link>
-            </CardContent>
-          </Card>
+        <section className="ancient-card-grid">
+          {modeCards.map((card) => (
+            <Card
+              key={card.title}
+              className={`ancient-panel ancient-panel--interactive ancient-panel--${card.accent}`}
+            >
+              <CardHeader className="ancient-panel__header">
+                <div className="ancient-panel__glyph" aria-hidden="true">
+                  {card.glyph}
+                </div>
+                <CardTitle>{card.title}</CardTitle>
+                <CardDescription>{card.description}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href={card.href}>
+                  <Button
+                    variant="ghost"
+                    className="ancient-panel__action"
+                    aria-label={card.action}
+                  >
+                    <span>{card.action}</span>
+                    <span className="ancient-panel__action-glow" />
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ))}
+        </section>
 
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle>⚔️ PvE Arena</CardTitle>
-              <CardDescription>Fight AI opponents with increasing difficulty</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href="/arena">
-                <Button className="w-full" variant="outline">Enter Arena</Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle>📅 Daily Challenges</CardTitle>
-              <CardDescription>3 puzzles daily to earn keys</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href="/daily">
-                <Button className="w-full" variant="outline">View Challenges</Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle>📚 Word Bank</CardTitle>
-              <CardDescription>View your collected vocabulary</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href="/wordbank">
-                <Button className="w-full" variant="outline">View Words</Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="text-center">
-          <Link href="/game">
-            <Button size="lg" className="text-lg px-8 py-6">
-              Quick Play
-            </Button>
-          </Link>
+        <div className="ancient-quickplay" aria-live="polite">
+          <QuickPlayButton />
         </div>
       </main>
     </div>
-  );
+  )
 }

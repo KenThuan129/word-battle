@@ -1,28 +1,58 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Letter } from '@/types';
 import { useGameStore } from '@/stores/gameStore';
 import { getLevel, calculateStars, getUnlockedLevels } from '@/lib/journeyLevels';
 import { JourneyProgress } from '@/types';
 import GameBoard from '@/components/game/GameBoard';
 import PlayerHand from '@/components/game/PlayerHand';
+import SigilDisplay from '@/components/game/SigilDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from 'sonner';
 
 export default function GamePage() {
   const router = useRouter();
-  const { game, currentMove, startGame, selectLetter, selectCell, clearMove, submitMove, endGame } = useGameStore();
+  const searchParams = useSearchParams();
+  const { game, currentMove, startGame, selectLetter, selectCell, clearMove, submitMove, endGame, makeAIMove, exchangeVowel } = useGameStore();
   
   const currentPlayer = game?.players.find(p => p.id === game.currentPlayerId);
   const isPlayerTurn = currentPlayer && !currentPlayer.isAI;
   
+  const levelParam = searchParams?.get('level');
+  const parsedLevel = levelParam ? Number(levelParam) : undefined;
+  const initialJourneyLevelId = parsedLevel && Number.isFinite(parsedLevel) && parsedLevel > 0
+    ? parsedLevel
+    : undefined;
+  
   useEffect(() => {
     if (!game) {
-      startGame('journey', 'easy');
+      startGame('journey', 'easy', initialJourneyLevelId ? { journeyLevelId: initialJourneyLevelId } : undefined);
     }
-  }, [game, startGame]);
+  }, [game, startGame, initialJourneyLevelId]);
+  
+  // Automatically trigger AI move when it's AI's turn
+  useEffect(() => {
+    if (!game || game.status !== 'playing') return;
+    
+    const currentPlayerForAI = game.players.find(p => p.id === game.currentPlayerId);
+    // Only trigger AI move if player is AI and level has AI
+    if (currentPlayerForAI?.isAI) {
+      const levelConfig = game.mode === 'journey' && game.journeyLevelId 
+        ? getLevel(game.journeyLevelId) 
+        : null;
+      if (levelConfig?.hasAI !== false) {
+        // Add a small delay to make it feel more natural
+        const timer = setTimeout(() => {
+          makeAIMove();
+        }, 500);
+        
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [game?.currentPlayerId, game?.status, game?.players, game?.journeyLevelId, makeAIMove]);
   
   // Handle game end and redirect to journey
   useEffect(() => {
@@ -133,7 +163,12 @@ export default function GamePage() {
       selectLetter(letter, index);
     }
   };
-  
+
+  // Check if this is a boss battle (level 5 or 10)
+  const isBossBattle = game.journeyLevelId === 5 || game.journeyLevelId === 10;
+  const player = game.players.find(p => !p.isAI);
+  const aiPlayer = game.players.find(p => p.isAI);
+
   return (
     <div className="container mx-auto p-4 max-w-6xl">
       <div className="flex justify-between items-center mb-6">
@@ -154,26 +189,64 @@ export default function GamePage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {game.players.map((player) => (
-                <div
-                  key={player.id}
-                  className={`p-4 rounded-lg border-2 ${
-                    player.id === game.currentPlayerId
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900'
-                      : 'border-gray-200 dark:border-gray-700'
-                  }`}
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold">{player.name}</span>
-                    <span className="text-2xl font-bold">{player.score}</span>
+              {game.players.map((player) => {
+                // Calculate max HP based on level: Level 5 = 65 HP, Level 10 = 75 HP for AI
+                const maxHp = player.isAI && isBossBattle
+                  ? (game.journeyLevelId === 5 ? 65 : game.journeyLevelId === 10 ? 75 : 200)
+                  : player.isAI ? 200 : 100;
+                const percentage = isBossBattle && player.hp !== undefined 
+                  ? Math.max(0, Math.min(100, (player.hp / maxHp) * 100))
+                  : 100;
+                const hpColor = percentage > 60 ? 'bg-green-500' : percentage > 30 ? 'bg-yellow-500' : 'bg-red-500';
+                
+                return (
+                  <div
+                    key={player.id}
+                    className={`p-4 rounded-lg border-2 ${
+                      player.id === game.currentPlayerId
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900'
+                        : 'border-gray-200 dark:border-gray-700'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold">{player.name}</span>
+                      <span className="text-2xl font-bold">{player.score}</span>
+                    </div>
+                    {isBossBattle && player.hp !== undefined && (
+                      <div className="mt-3 space-y-2">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600 dark:text-gray-400 font-medium">HP:</span>
+                          <span className="font-semibold">{player.hp} / {maxHp}</span>
+                        </div>
+                        <div className="relative h-3 w-full bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${hpColor}`}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 text-right">
+                          {Math.round(percentage)}%
+                        </div>
+                      </div>
+                    )}
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      {player.hand.length} letters
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    {player.hand.length} letters
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
+          
+          {/* Sigil Display - Only shown in boss battles */}
+          {isBossBattle && (
+            <SigilDisplay
+              levelId={game.journeyLevelId || 0}
+              sigilCount={game.sigilCount}
+              activeEffects={game.activeSigilEffects}
+              fiveLetterWordCount={game.fiveLetterWordCount}
+            />
+          )}
           
           {/* Current Move */}
           {currentMove && (
@@ -274,13 +347,30 @@ export default function GamePage() {
                   Click letters to build your word, then click cells to place them
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <PlayerHand
                   letters={currentPlayer.hand}
                   onLetterSelect={handleLetterClick}
                   selectedIndices={selectedLetterIndices}
                   disabled={!isPlayerTurn}
                 />
+                <div className="flex justify-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const result = exchangeVowel();
+                      if (!result.success) {
+                        toast.error(result.error || 'Failed to exchange vowel');
+                      } else {
+                        toast.success('Exchanged consonant for vowel!');
+                      }
+                    }}
+                    disabled={!isPlayerTurn}
+                    className="w-full"
+                  >
+                    🔄 Exchange Vowel (1 Consonant → Random Vowel)
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}

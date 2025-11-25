@@ -123,3 +123,16 @@ export function getPartOfSpeech(def: WordDefinition): string {
   return 'unknown';
 }
 
+export function getPronunciation(def: WordDefinition): string | undefined {
+  // Try phonetic first
+  if (def.phonetic) {
+    return def.phonetic;
+  }
+  // Try phonetics array
+  if (def.phonetics && def.phonetics.length > 0) {
+    const phonetic = def.phonetics.find(p => p.text);
+    return phonetic?.text;
+  }
+  return undefined;
+}
+

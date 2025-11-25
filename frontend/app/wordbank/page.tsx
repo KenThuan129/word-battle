@@ -263,8 +263,34 @@ export default function WordBankPage() {
                             </span>
                           )}
                         </div>
+                        {/* Word - Pronunciation - Meaning format */}
+                        <div className="space-y-1 mb-2">
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="font-semibold text-gray-900 dark:text-gray-100">
+                              {word.word.toUpperCase()}
+                            </span>
+                            {word.pronunciation && (
+                              <>
+                                <span className="text-gray-400">-</span>
+                                <span className="text-gray-600 dark:text-gray-400 italic">
+                                  {word.pronunciation}
+                                </span>
+                              </>
+                            )}
+                            {word.definition && (
+                              <>
+                                <span className="text-gray-400">-</span>
+                                <span className="text-gray-700 dark:text-gray-300">
+                                  {word.definition.length > 60 
+                                    ? word.definition.substring(0, 60) + '...' 
+                                    : word.definition}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
                         {word.partOfSpeech && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400 italic mb-1">
+                          <p className="text-xs text-gray-500 dark:text-gray-500 italic mb-1">
                             {word.partOfSpeech}
                           </p>
                         )}
