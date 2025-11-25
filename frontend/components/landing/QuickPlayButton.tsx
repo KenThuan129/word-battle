@@ -1,17 +1,21 @@
 'use client'
 
 import Link from "next/link"
-import { motion } from "framer-motion"
+import { motion, type Variants } from "framer-motion"
 
 import { Button } from "@/components/ui/button"
 import { useParticleEmitter } from "@/hooks/useParticleEmitter"
 
-const pulseVariants = {
+const pulseVariants: Variants = {
   initial: { scale: 0.98, opacity: 0.85 },
   animate: {
     scale: [1, 1.02, 1],
     opacity: [0.95, 1, 0.95],
-    transition: { duration: 2.4, repeat: Infinity, ease: "easeInOut" },
+    transition: {
+      duration: 2.4,
+      repeat: Infinity,
+      ease: [0.4, 0, 0.2, 1],
+    },
   },
 }
 
