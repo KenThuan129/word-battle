@@ -1,7 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { colors, textStyles } from '../lib/theme';
 
 type RootStackParamList = {
   MainTabs: undefined;
@@ -18,7 +20,8 @@ export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <Text style={styles.title}>Word Battle</Text>
         <Text style={styles.subtitle}>
@@ -78,31 +81,37 @@ export default function HomeScreen() {
       >
         <Text style={styles.quickPlayText}>Quick Play</Text>
       </TouchableOpacity>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
   },
   content: {
-    padding: 20,
+    padding: 24,
+    paddingTop: 16,
   },
   header: {
     marginBottom: 30,
     alignItems: 'center',
   },
   title: {
+    ...textStyles.h1,
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1e293b',
     marginBottom: 8,
   },
   subtitle: {
+    ...textStyles.body,
     fontSize: 16,
-    color: '#64748b',
+    color: colors.mutedForeground,
     textAlign: 'center',
   },
   grid: {
@@ -113,41 +122,39 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '48%',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   cardEmoji: {
     fontSize: 32,
     marginBottom: 8,
   },
   cardTitle: {
+    ...textStyles.h3,
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1e293b',
     marginBottom: 4,
   },
   cardDescription: {
+    ...textStyles.body,
     fontSize: 12,
-    color: '#64748b',
+    color: colors.mutedForeground,
   },
   quickPlayButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     marginTop: 20,
   },
   quickPlayText: {
-    color: '#ffffff',
+    ...textStyles.body,
+    color: colors.primaryForeground,
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
 });
 

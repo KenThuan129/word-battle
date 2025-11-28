@@ -3,10 +3,12 @@
 import React, { useState, useEffect, useCallback, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from '@/stores/gameStore';
-import { AIDifficulty, ArenaRank, PvEArena, JourneyProgress } from '@/types';
+import { AIDifficulty, ArenaRank, PvEArena, JourneyProgress, ArenaSigilType } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import SigilSelectionDialog from '@/components/game/SigilSelectionDialog';
+import BossBattleIntro from '@/components/game/BossBattleIntro';
 
 const ARENA_RANKS: ArenaRank[] = [
   {
@@ -74,6 +76,11 @@ export default function ArenaPage() {
     minimumStars?: number;
     minimumLevel?: number;
   }>({ unlocked: false });
+  const [showSigilDialog, setShowSigilDialog] = useState(false);
+  const [showBossIntro, setShowBossIntro] = useState(false);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<AIDifficulty | null>(null);
+  const [selectedRankIndex, setSelectedRankIndex] = useState<number | null>(null);
+  const [selectedSigil, setSelectedSigil] = useState<ArenaSigilType | null>(null);
   
   const { startGame } = useGameStore();
   
@@ -134,14 +141,46 @@ export default function ArenaPage() {
     loadJourneyProgress();
   }, [loadArenaProgress, loadJourneyProgress]);
   
-  const handleStartArena = (difficulty: AIDifficulty) => {
+  const handleStartArena = (difficulty: AIDifficulty, rankIndex: number) => {
     if (!conditions.unlocked) {
       alert('Arena is locked! Complete Journey Mode Level 5 or earn 15 stars to unlock.');
       return;
     }
     
-    startGame('arena', difficulty);
-    router.push(`/game/?mode=arena&difficulty=${difficulty}`);
+    const currentRank = arena.difficulties[rankIndex];
+    const isBossBattle = currentRank.currentWins >= currentRank.winsRequired - 1;
+    
+    if (isBossBattle) {
+      // Show sigil selection dialog for boss battle
+      setSelectedDifficulty(difficulty);
+      setSelectedRankIndex(rankIndex);
+      setShowSigilDialog(true);
+    } else {
+      // Regular match
+      startGame('arena', difficulty, { arenaRankId: rankIndex, isBossBattle: false });
+      router.push(`/game/?mode=arena&difficulty=${difficulty}`);
+    }
+  };
+
+  const handleSigilSelected = (sigilType: ArenaSigilType) => {
+    setSelectedSigil(sigilType);
+    setShowSigilDialog(false);
+    setShowBossIntro(true);
+  };
+
+  const handleBossIntroComplete = () => {
+    if (selectedDifficulty && selectedRankIndex !== null && selectedSigil) {
+      const rankName = arena.difficulties[selectedRankIndex]?.name || 'Boss';
+      startGame('arena', selectedDifficulty, {
+        arenaRankId: selectedRankIndex,
+        isBossBattle: true,
+        selectedSigil: selectedSigil,
+        playerHp: 100,
+        aiHp: 130,
+      });
+      router.push(`/game/?mode=arena&difficulty=${selectedDifficulty}&boss=true`);
+    }
+    setShowBossIntro(false);
   };
   
   const getDifficultyColor = (difficulty: AIDifficulty) => {
@@ -339,12 +378,18 @@ export default function ArenaPage() {
                 {/* Action Button */}
                 {isUnlocked ? (
                   <Button
-                    onClick={() => handleStartArena(rank.difficulty)}
+                    onClick={() => handleStartArena(rank.difficulty, index)}
                     className="w-full"
                     variant={isCurrentRank ? 'default' : 'outline'}
                     disabled={!conditions.unlocked}
                   >
-                    {isCurrentRank ? 'Fight Now' : isCompleted ? 'Replay' : 'Challenge'}
+                    {isCurrentRank && rank.currentWins >= rank.winsRequired - 1
+                      ? '⚔️ Boss Battle'
+                      : isCurrentRank
+                      ? 'Fight Now'
+                      : isCompleted
+                      ? 'Replay'
+                      : 'Challenge'}
                   </Button>
                 ) : (
                   <div className="text-xs text-gray-500 text-center">
@@ -373,6 +418,31 @@ export default function ArenaPage() {
           </ul>
         </CardContent>
       </Card>
+
+      {/* Sigil Selection Dialog */}
+      {selectedRankIndex !== null && (
+        <SigilSelectionDialog
+          open={showSigilDialog}
+          onSelect={handleSigilSelected}
+          rankName={arena.difficulties[selectedRankIndex]?.name || 'Boss'}
+        />
+      )}
+
+      {/* Boss Battle Intro */}
+      {selectedSigil && selectedRankIndex !== null && (
+        <BossBattleIntro
+          open={showBossIntro}
+          onComplete={handleBossIntroComplete}
+          rankName={arena.difficulties[selectedRankIndex]?.name || 'Boss'}
+          sigilName={
+            selectedSigil === 'protection_of_knowledge'
+              ? 'Protection of Knowledge'
+              : selectedSigil === 'word_blast'
+              ? 'Word Blast'
+              : 'Overloading Process'
+          }
+        />
+      )}
     </div>
   );
 }

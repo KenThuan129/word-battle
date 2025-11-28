@@ -1,6 +1,7 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Board, Position, Cell } from '../../types';
+import React, { useMemo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { Board, Position } from '../../types';
+import { colors, textStyles } from '../../lib/theme';
 
 interface GameBoardProps {
   board: Board;
@@ -15,30 +16,57 @@ export default function GameBoard({
   selectedCells = [],
   disabled = false,
 }: GameBoardProps) {
+  const { width: screenWidth } = Dimensions.get('window');
+  const boardWidth = board.width || board.size;
+  const boardHeight = board.height || board.size;
+  const maxBoardPixelSize = Math.min(screenWidth - 32, 420);
+
+  const CELL_SIZE = useMemo(() => {
+    const calculated = Math.floor(maxBoardPixelSize / boardWidth) - 4;
+    return Math.max(28, Math.min(calculated, 64));
+  }, [boardWidth, maxBoardPixelSize]);
+
+  const CELL_STYLE = useMemo(
+    () => ({
+      width: CELL_SIZE,
+      height: CELL_SIZE,
+    }),
+    [CELL_SIZE]
+  );
+
   const isSelected = (row: number, col: number) => {
     return selectedCells.some(pos => pos.row === row && pos.col === col);
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.board}>
+      <View
+        style={[
+          styles.board,
+          { padding: Math.max(4, Math.floor(CELL_SIZE * 0.08)) },
+        ]}
+      >
         {board.cells.map((row, rowIndex) => (
           <View key={rowIndex} style={styles.row}>
             {row.map((cell, colIndex) => {
               const selected = isSelected(rowIndex, colIndex);
               const isCenter = cell.isCenter;
-              
+              const isCorrupted = cell.isCorrupted;
+
               return (
                 <TouchableOpacity
                   key={`${rowIndex}-${colIndex}`}
                   style={[
                     styles.cell,
+                    CELL_STYLE,
                     selected && styles.selectedCell,
                     isCenter && styles.centerCell,
+                    isCorrupted && styles.corruptedCell,
                     disabled && styles.disabledCell,
                   ]}
-                  onPress={() => !disabled && onCellPress({ row: rowIndex, col: colIndex })}
-                  disabled={disabled}
+                  onPress={() => !disabled && !isCorrupted && onCellPress({ row: rowIndex, col: colIndex })}
+                  disabled={disabled || isCorrupted}
+                  activeOpacity={0.7}
                 >
                   {cell.letter ? (
                     <View style={styles.letterContainer}>
@@ -58,43 +86,45 @@ export default function GameBoard({
   );
 }
 
-const CELL_SIZE = 40;
-const BOARD_SIZE = 8;
-
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 10,
+    padding: 8,
   },
   board: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
+    backgroundColor: colors.card,
+    borderRadius: 12,
     padding: 4,
-    borderWidth: 2,
-    borderColor: '#333',
+    borderWidth: 1,
+    borderColor: colors.border,
+    maxWidth: '100%',
   },
   row: {
     flexDirection: 'row',
   },
   cell: {
-    width: CELL_SIZE,
-    height: CELL_SIZE,
-    backgroundColor: '#fff',
+    backgroundColor: colors.muted,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     margin: 1,
     borderRadius: 4,
   },
   selectedCell: {
-    backgroundColor: '#4a90e2',
-    borderColor: '#2e5a8a',
+    backgroundColor: colors.primary,
+    borderColor: colors.accent,
     borderWidth: 2,
   },
   centerCell: {
-    backgroundColor: '#fff8dc',
+    backgroundColor: colors.accentAmber + '20',
+    borderColor: colors.accentAmber,
+  },
+  corruptedCell: {
+    backgroundColor: colors.muted,
+    borderColor: colors.destructive,
+    opacity: 0.6,
   },
   disabledCell: {
     opacity: 0.5,
@@ -104,20 +134,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   letter: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    ...textStyles.h3,
+    fontSize: 16,
+    color: colors.foreground,
   },
   points: {
-    fontSize: 10,
-    color: '#666',
+    ...textStyles.mono,
+    fontSize: 9,
+    color: colors.mutedForeground,
     marginTop: -2,
   },
   centerDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#ff6b6b',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.destructive,
   },
 });
 

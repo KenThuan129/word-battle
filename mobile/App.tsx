@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Text, View, StyleSheet } from 'react-native';
+
+// Initialize dictionary on app start
+import { initializeBasicDictionary, loadComprehensiveDictionary } from './src/lib/dictionaryLoader';
 
 // Screens (to be created)
 import HomeScreen from './src/screens/HomeScreen';
@@ -91,6 +94,15 @@ function TabNavigator() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Ensure dictionary is initialized
+    initializeBasicDictionary();
+    // Load comprehensive dictionary in background
+    loadComprehensiveDictionary().catch(err => {
+      console.warn('Failed to load comprehensive dictionary:', err);
+    });
+  }, []);
+
   return (
     <SafeAreaProvider>
       <NavigationContainer>
@@ -103,7 +115,7 @@ export default function App() {
           <Stack.Screen name="Game" component={GameScreen} />
         </Stack.Navigator>
       </NavigationContainer>
-      <StatusBar style="auto" />
+      <StatusBar style="light" />
     </SafeAreaProvider>
   );
 }

@@ -119,9 +119,21 @@ export default function DailyChallengePage() {
   const handleStartPuzzle = (puzzle: ChallengePuzzle) => {
     // Start game with puzzle configuration
     const aiDifficulty = puzzle.config.aiDifficulty || 'easy';
-    startGame('daily', aiDifficulty);
+    startGame('daily', aiDifficulty, {
+      dailyPuzzleId: puzzle.id,
+      dailyTargetScore: puzzle.config.targetScore,
+    });
+
+    const params = new URLSearchParams({
+      mode: 'daily',
+      puzzle: puzzle.id,
+      ai: aiDifficulty,
+    });
+    if (puzzle.config.targetScore !== undefined) {
+      params.set('target', String(puzzle.config.targetScore));
+    }
     
-    router.push(`/game/?mode=daily&puzzle=${puzzle.id}`);
+    router.push(`/game/?${params.toString()}`);
   };
   
   const getDifficultyColor = (difficulty: string) => {

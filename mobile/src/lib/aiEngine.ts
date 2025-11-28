@@ -7,9 +7,10 @@ import {
   getAllWordsFromMove, 
   calculateWordScore,
   isFirstMove,
-  passesThroughCenter,
   hasAdjacentLetter,
   LETTER_CONFIG,
+  getBoardWidth,
+  getBoardHeight,
 } from './gameEngine';
 import { isValidWord } from './dictionary';
 
@@ -100,10 +101,11 @@ export function calculateAIMove(
   aiHand: Letter[],
   playerHand: Letter[],
   config: AIConfig,
-  turn: number
+  turn: number,
+  allowGaps: boolean = false
 ): Move | null {
   // Get all possible words from AI's hand
-  const possibleMoves = generatePossibleMoves(board, aiHand, config);
+  const possibleMoves = generatePossibleMoves(board, aiHand, config, allowGaps);
   
   if (possibleMoves.length === 0) {
     return null; // No valid moves
@@ -136,27 +138,40 @@ export function calculateAIMove(
   };
 }
 
+export function hasValidMove(
+  board: Board,
+  hand: Letter[],
+  config: AIConfig,
+  allowGaps: boolean = false
+): boolean {
+  const moves = generatePossibleMoves(board, hand, config, allowGaps);
+  return moves.length > 0;
+}
+
 function generatePossibleMoves(
   board: Board,
   hand: Letter[],
-  config: AIConfig
+  config: AIConfig,
+  allowGaps: boolean = false
 ): PossibleMove[] {
   const moves: PossibleMove[] = [];
   const handLetters = hand.map(l => l.char).join('').toLowerCase();
+  const boardWidth = getBoardWidth(board);
+  const boardHeight = getBoardHeight(board);
   
   // Generate all possible word combinations from hand
   const words = generateWordsFromLetters(handLetters, config.minWordLength, config.maxWordLength);
   
   // For first move, word must pass through center
   if (isFirstMove(board)) {
-    const centerRow = Math.floor(board.size / 2);
-    const centerCol = Math.floor(board.size / 2);
+    const centerRow = Math.floor(boardHeight / 2);
+    const centerCol = Math.floor(boardWidth / 2);
     
     for (const word of words) {
       // Try horizontal placement through center
-      if (word.length <= board.size) {
+      if (word.length <= boardWidth) {
         const startCol = Math.max(0, centerCol - word.length + 1);
-        const endCol = Math.min(board.size - word.length, centerCol);
+        const endCol = Math.min(boardWidth - word.length, centerCol);
         
         for (let col = startCol; col <= endCol; col++) {
           if (col <= centerCol && centerCol < col + word.length) {
@@ -172,7 +187,7 @@ function generatePossibleMoves(
               }
             }
             
-            if (canPlaceWord(board, positions, word, hand)) {
+            if (canPlaceWord(board, positions, word, hand, allowGaps)) {
               moves.push({
                 word: word.toUpperCase(),
                 positions,
@@ -186,9 +201,9 @@ function generatePossibleMoves(
       }
       
       // Try vertical placement through center
-      if (word.length <= board.size) {
+      if (word.length <= boardHeight) {
         const startRow = Math.max(0, centerRow - word.length + 1);
-        const endRow = Math.min(board.size - word.length, centerRow);
+        const endRow = Math.min(boardHeight - word.length, centerRow);
         
         for (let row = startRow; row <= endRow; row++) {
           if (row <= centerRow && centerRow < row + word.length) {
@@ -204,7 +219,7 @@ function generatePossibleMoves(
               }
             }
             
-            if (canPlaceWord(board, positions, word, hand)) {
+            if (canPlaceWord(board, positions, word, hand, allowGaps)) {
               moves.push({
                 word: word.toUpperCase(),
                 positions,
@@ -284,7 +299,8 @@ function canPlaceWord(
   board: Board,
   positions: Position[],
   word: string,
-  hand: Letter[]
+  hand: Letter[],
+  allowGaps: boolean = false
 ): boolean {
   if (positions.length !== word.length) {
     return false;
@@ -301,7 +317,7 @@ function canPlaceWord(
   
   for (let i = 0; i < word.length; i++) {
     const pos = positions[i];
-    if (!isValidPosition(pos)) {
+    if (!isValidPosition(pos, board)) {
       return false;
     }
     
@@ -335,136 +351,127 @@ function canPlaceWord(
     playerId: 'ai',
   };
   
-  const validation = validateMove(board, move, hand, isValidWord);
+  const validation = validateMove(board, move, hand, isValidWord, allowGaps);
   return validation.valid;
 }
 
 function findWordPlacements(
   board: Board,
   word: string,
-  hand: Letter[]
+  hand: Letter[],
+  allowGaps: boolean = false
 ): Array<{ positions: Position[]; direction: 'horizontal' | 'vertical'; lettersNeeded: Letter[] }> {
   const placements: Array<{ positions: Position[]; direction: 'horizontal' | 'vertical'; lettersNeeded: Letter[] }> = [];
+  const boardWidth = getBoardWidth(board);
+  const boardHeight = getBoardHeight(board);
   
-  // Try horizontal placements - can use board letters
-  for (let row = 0; row < board.size; row++) {
-    for (let col = 0; col <= board.size - word.length; col++) {
-      const positions: Position[] = [];
-      let canBuild = true;
-      const usedHand: Letter[] = [];
-      const handAvailable: Record<string, number> = {};
-      
-      // Count available hand letters
-      for (const letter of hand) {
-        const char = letter.char.toUpperCase();
-        handAvailable[char] = (handAvailable[char] || 0) + 1;
-      }
-      
-      // Build word checking each position
-      for (let i = 0; i < word.length && canBuild; i++) {
-        const pos = { row, col: col + i };
-        positions.push(pos);
+  const tryPlacement = (
+    positions: Position[],
+    usedHand: Letter[]
+  ) => {
+    if (canPlaceWord(board, positions, word, hand, allowGaps)) {
+      if (isFirstMove(board) || positions.some(pos => {
         const cell = board.cells[pos.row][pos.col];
-        const requiredChar = word[i].toUpperCase();
+        return cell.letter !== null || hasAdjacentLetter(board, pos);
+      })) {
+        placements.push({
+          positions,
+          direction: positions[0].row === positions[positions.length - 1].row ? 'horizontal' : 'vertical',
+          lettersNeeded: usedHand,
+        });
+      }
+    }
+  };
+  
+  if (word.length <= boardWidth) {
+    for (let row = 0; row < boardHeight; row++) {
+      for (let col = 0; col <= boardWidth - word.length; col++) {
+        const positions: Position[] = [];
+        const usedHand: Letter[] = [];
+        const handAvailable: Record<string, number> = {};
+        let canBuild = true;
         
-        if (cell.letter) {
-          // Use board letter if it matches
-          if (cell.letter.char !== requiredChar) {
-            canBuild = false;
-            break;
-          }
-          // Letter matches - use it from board
-        } else {
-          // Need letter from hand
-          if (!handAvailable[requiredChar] || handAvailable[requiredChar] === 0) {
-            canBuild = false;
-            break;
-          }
-          // Use letter from hand
-          const letter = hand.find(l => l.char === requiredChar && !usedHand.includes(l));
-          if (letter) {
-            usedHand.push(letter);
-            handAvailable[requiredChar]--;
+        for (const letter of hand) {
+          const char = letter.char.toUpperCase();
+          handAvailable[char] = (handAvailable[char] || 0) + 1;
+        }
+        
+        for (let i = 0; i < word.length && canBuild; i++) {
+          const pos = { row, col: col + i };
+          positions.push(pos);
+          const cell = board.cells[pos.row][pos.col];
+          const requiredChar = word[i].toUpperCase();
+          
+          if (cell.letter) {
+            if (cell.letter.char !== requiredChar) {
+              canBuild = false;
+              break;
+            }
           } else {
-            canBuild = false;
-            break;
+            if (!handAvailable[requiredChar]) {
+              canBuild = false;
+              break;
+            }
+            const letter = hand.find(l => l.char === requiredChar && !usedHand.includes(l));
+            if (letter) {
+              usedHand.push(letter);
+              handAvailable[requiredChar]--;
+            } else {
+              canBuild = false;
+              break;
+            }
           }
         }
-      }
-      
-      if (canBuild && canPlaceWord(board, positions, word, hand)) {
-        // Check if placement connects to existing letters (for non-first moves)
-        if (isFirstMove(board) || positions.some(pos => {
-          const cell = board.cells[pos.row][pos.col];
-          return cell.letter !== null || hasAdjacentLetter(board, pos);
-        })) {
-          placements.push({ 
-            positions, 
-            direction: 'horizontal', 
-            lettersNeeded: usedHand 
-          });
+        
+        if (canBuild) {
+          tryPlacement(positions, usedHand);
         }
       }
     }
   }
   
-  // Try vertical placements - can use board letters
-  for (let row = 0; row <= board.size - word.length; row++) {
-    for (let col = 0; col < board.size; col++) {
-      const positions: Position[] = [];
-      let canBuild = true;
-      const usedHand: Letter[] = [];
-      const handAvailable: Record<string, number> = {};
-      
-      // Count available hand letters
-      for (const letter of hand) {
-        const char = letter.char.toUpperCase();
-        handAvailable[char] = (handAvailable[char] || 0) + 1;
-      }
-      
-      // Build word checking each position
-      for (let i = 0; i < word.length && canBuild; i++) {
-        const pos = { row: row + i, col };
-        positions.push(pos);
-        const cell = board.cells[pos.row][pos.col];
-        const requiredChar = word[i].toUpperCase();
+  if (word.length <= boardHeight) {
+    for (let row = 0; row <= boardHeight - word.length; row++) {
+      for (let col = 0; col < boardWidth; col++) {
+        const positions: Position[] = [];
+        const usedHand: Letter[] = [];
+        const handAvailable: Record<string, number> = {};
+        let canBuild = true;
         
-        if (cell.letter) {
-          // Use board letter if it matches
-          if (cell.letter.char !== requiredChar) {
-            canBuild = false;
-            break;
-          }
-          // Letter matches - use it from board
-        } else {
-          // Need letter from hand
-          if (!handAvailable[requiredChar] || handAvailable[requiredChar] === 0) {
-            canBuild = false;
-            break;
-          }
-          // Use letter from hand
-          const letter = hand.find(l => l.char === requiredChar && !usedHand.includes(l));
-          if (letter) {
-            usedHand.push(letter);
-            handAvailable[requiredChar]--;
+        for (const letter of hand) {
+          const char = letter.char.toUpperCase();
+          handAvailable[char] = (handAvailable[char] || 0) + 1;
+        }
+        
+        for (let i = 0; i < word.length && canBuild; i++) {
+          const pos = { row: row + i, col };
+          positions.push(pos);
+          const cell = board.cells[pos.row][pos.col];
+          const requiredChar = word[i].toUpperCase();
+          
+          if (cell.letter) {
+            if (cell.letter.char !== requiredChar) {
+              canBuild = false;
+              break;
+            }
           } else {
-            canBuild = false;
-            break;
+            if (!handAvailable[requiredChar]) {
+              canBuild = false;
+              break;
+            }
+            const letter = hand.find(l => l.char === requiredChar && !usedHand.includes(l));
+            if (letter) {
+              usedHand.push(letter);
+              handAvailable[requiredChar]--;
+            } else {
+              canBuild = false;
+              break;
+            }
           }
         }
-      }
-      
-      if (canBuild && canPlaceWord(board, positions, word, hand)) {
-        // Check if placement connects to existing letters (for non-first moves)
-        if (isFirstMove(board) || positions.some(pos => {
-          const cell = board.cells[pos.row][pos.col];
-          return cell.letter !== null || hasAdjacentLetter(board, pos);
-        })) {
-          placements.push({ 
-            positions, 
-            direction: 'vertical', 
-            lettersNeeded: usedHand 
-          });
+        
+        if (canBuild) {
+          tryPlacement(positions, usedHand);
         }
       }
     }
@@ -525,8 +532,8 @@ function calculateBlockingScore(move: PossibleMove, board: Board, config: AIConf
 }
 
 function calculateControlScore(move: PossibleMove, board: Board, config: AIConfig): number {
-  const centerRow = Math.floor(board.size / 2);
-  const centerCol = Math.floor(board.size / 2);
+  const centerRow = Math.floor(getBoardHeight(board) / 2);
+  const centerCol = Math.floor(getBoardWidth(board) / 2);
   
   let score = 0;
   
@@ -557,14 +564,17 @@ function calculateLetterManagementScore(move: PossibleMove, hand: Letter[], conf
 function generateWordsFromBoardLetters(
   board: Board,
   hand: Letter[],
-  config: AIConfig
+  config: AIConfig,
+  allowGaps: boolean = false
 ): PossibleMove[] {
   const moves: PossibleMove[] = [];
+  const boardWidth = getBoardWidth(board);
+  const boardHeight = getBoardHeight(board);
   
   // Find all letters on the board
   const boardLetters: Array<{ pos: Position; letter: Letter }> = [];
-  for (let row = 0; row < board.size; row++) {
-    for (let col = 0; col < board.size; col++) {
+  for (let row = 0; row < boardHeight; row++) {
+    for (let col = 0; col < boardWidth; col++) {
       const cell = board.cells[row][col];
       if (cell.letter) {
         boardLetters.push({
@@ -595,7 +605,8 @@ function generateWordsFromBoardLetters(
         hand,
         word,
         boardLetter.pos,
-        'horizontal'
+        'horizontal',
+        allowGaps
       );
       moves.push(...horizontalPlacements);
       
@@ -605,7 +616,8 @@ function generateWordsFromBoardLetters(
         hand,
         word,
         boardLetter.pos,
-        'vertical'
+        'vertical',
+        allowGaps
       );
       moves.push(...verticalPlacements);
     }
@@ -665,9 +677,12 @@ function findPlacementsExtendingFrom(
   hand: Letter[],
   word: string,
   startPos: Position,
-  direction: 'horizontal' | 'vertical'
+  direction: 'horizontal' | 'vertical',
+  allowGaps: boolean = false
 ): PossibleMove[] {
   const moves: PossibleMove[] = [];
+  const boardWidth = getBoardWidth(board);
+  const boardHeight = getBoardHeight(board);
   
   // Try different starting positions relative to the board letter
   const boardChar = board.cells[startPos.row][startPos.col].letter?.char.toLowerCase();
@@ -711,7 +726,7 @@ function findPlacementsExtendingFrom(
     }
     
     // Check bounds
-    if (pos.row < 0 || pos.row >= board.size || pos.col < 0 || pos.col >= board.size) {
+    if (pos.row < 0 || pos.row >= boardHeight || pos.col < 0 || pos.col >= boardWidth) {
       canBuild = false;
       break;
     }
@@ -745,7 +760,7 @@ function findPlacementsExtendingFrom(
     }
   }
   
-  if (canBuild && canPlaceWord(board, positions, word, hand)) {
+  if (canBuild && canPlaceWord(board, positions, word, hand, allowGaps)) {
     // Check connection requirement
     if (positions.some(pos => {
       const cell = board.cells[pos.row][pos.col];

@@ -76,6 +76,26 @@ export interface GameState {
   sigilCount?: number; // Track words built for sigil activation (levels 5 and 10)
   activeSigilEffects?: Array<{ type: string; damage: number; turnsRemaining: number }>; // Active sigil effects
   fiveLetterWordCount?: number; // Track 5-letter words for Level 10 sigil
+  arenaRankId?: number; // Track current arena rank
+  arenaBossBattle?: {
+    isBossBattle: boolean;
+    selectedSigil?: ArenaSigilType;
+  };
+  arenaSigilEffects?: Array<{
+    type: ArenaSigilType;
+    turnsRemaining?: number;
+    vowelsPlayed?: number;
+    firstHitDone?: boolean;
+    wordBlastTurnsRemaining?: number;
+  }>; // Arena-specific sigil effects
+  dailyChallenge?: {
+    puzzleId: string;
+    targetScore?: number;
+  }; // Daily challenge metadata
+  lastEvent?: {
+    type: 'checkmate';
+    message: string;
+  };
 }
 
 export interface PowerUp {
@@ -231,6 +251,24 @@ export interface PvEArena {
   difficulties: ArenaRank[];
   currentRank: number;
   highestRankAchieved: number;
+}
+
+export type ArenaSigilType = 
+  | 'protection_of_knowledge'
+  | 'word_blast'
+  | 'overloading_process';
+
+export interface ArenaSigil {
+  type: ArenaSigilType;
+  name: string;
+  description: string;
+}
+
+export interface ArenaBossBattle {
+  isBossBattle: boolean;
+  selectedSigil?: ArenaSigilType;
+  playerStartingHp: number;
+  aiStartingHp: number;
 }
 
 // Player Profile Types

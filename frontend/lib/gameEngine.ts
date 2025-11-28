@@ -4,13 +4,26 @@ import { Board, Cell, Position, Letter, Move, Player, GameState } from '@/types'
 import { ensureWordIsValid } from './dictionary';
 
 const BOARD_SIZE = 8;
-const CENTER_ROW = Math.floor(BOARD_SIZE / 2);
-const CENTER_COL = Math.floor(BOARD_SIZE / 2);
 
 export function getBoardDimensions(width?: number, height?: number): { width: number; height: number } {
   return {
     width: width || BOARD_SIZE,
     height: height || BOARD_SIZE,
+  };
+}
+
+export function getBoardWidth(board: Board): number {
+  return board.width ?? board.size ?? BOARD_SIZE;
+}
+
+export function getBoardHeight(board: Board): number {
+  return board.height ?? board.size ?? BOARD_SIZE;
+}
+
+export function getBoardCenter(board: Board): Position {
+  return {
+    row: Math.floor(getBoardHeight(board) / 2),
+    col: Math.floor(getBoardWidth(board) / 2),
   };
 }
 
@@ -213,11 +226,13 @@ export function drawLetters(count: number, distribution: Letter[]): Letter[] {
   return drawn;
 }
 
-export function isValidPosition(pos: Position): boolean {
-  return pos.row >= 0 && pos.row < BOARD_SIZE && pos.col >= 0 && pos.col < BOARD_SIZE;
+export function isValidPosition(pos: Position, board?: Board): boolean {
+  const height = board ? getBoardHeight(board) : BOARD_SIZE;
+  const width = board ? getBoardWidth(board) : BOARD_SIZE;
+  return pos.row >= 0 && pos.row < height && pos.col >= 0 && pos.col < width;
 }
 
-export function getAdjacentPositions(pos: Position): Position[] {
+export function getAdjacentPositions(board: Board, pos: Position): Position[] {
   const adjacent: Position[] = [];
   const directions = [
     { row: -1, col: 0 },  // up
@@ -228,7 +243,7 @@ export function getAdjacentPositions(pos: Position): Position[] {
   
   for (const dir of directions) {
     const newPos = { row: pos.row + dir.row, col: pos.col + dir.col };
-    if (isValidPosition(newPos)) {
+    if (isValidPosition(newPos, board)) {
       adjacent.push(newPos);
     }
   }
@@ -237,17 +252,19 @@ export function getAdjacentPositions(pos: Position): Position[] {
 }
 
 export function hasAdjacentLetter(board: Board, pos: Position): boolean {
-  return getAdjacentPositions(pos).some(adj => 
+  return getAdjacentPositions(board, pos).some(adj => 
     board.cells[adj.row][adj.col].letter !== null
   );
 }
 
 export function isFirstMove(board: Board): boolean {
-  // Check if board is empty except center
-  for (let row = 0; row < BOARD_SIZE; row++) {
-    for (let col = 0; col < BOARD_SIZE; col++) {
-      const cell = board.cells[row][col];
-      if (cell.letter !== null && !cell.isCenter) {
+  const height = getBoardHeight(board);
+  const width = getBoardWidth(board);
+  
+  for (let row = 0; row < height; row++) {
+    for (let col = 0; col < width; col++) {
+      const cell = board.cells[row]?.[col];
+      if (cell?.letter !== null && !cell.isCenter) {
         return false;
       }
     }
@@ -255,8 +272,9 @@ export function isFirstMove(board: Board): boolean {
   return true;
 }
 
-export function passesThroughCenter(positions: Position[]): boolean {
-  return positions.some(pos => pos.row === CENTER_ROW && pos.col === CENTER_COL);
+export function passesThroughCenter(board: Board, positions: Position[]): boolean {
+  const center = getBoardCenter(board);
+  return positions.some(pos => pos.row === center.row && pos.col === center.col);
 }
 
 export function extractWordFromBoard(
@@ -266,6 +284,8 @@ export function extractWordFromBoard(
 ): string {
   const word: string[] = [];
   const { row, col } = startPos;
+  const boardWidth = getBoardWidth(board);
+  const boardHeight = getBoardHeight(board);
   
   // Find start of word (go backwards until no letter)
   let startRow = row;
@@ -276,7 +296,7 @@ export function extractWordFromBoard(
       startCol--;
     }
     // Collect letters going right
-    while (startCol < BOARD_SIZE && board.cells[startRow][startCol].letter !== null) {
+    while (startCol < boardWidth && board.cells[startRow][startCol].letter !== null) {
       word.push(board.cells[startRow][startCol].letter!.char);
       startCol++;
     }
@@ -285,7 +305,7 @@ export function extractWordFromBoard(
       startRow--;
     }
     // Collect letters going down
-    while (startRow < BOARD_SIZE && board.cells[startRow][startCol].letter !== null) {
+    while (startRow < boardHeight && board.cells[startRow][startCol].letter !== null) {
       word.push(board.cells[startRow][startCol].letter!.char);
       startRow++;
     }
@@ -309,12 +329,14 @@ function collectWordPositions(board: Board, anchor: Position, direction: 'horizo
   const positions: Position[] = [];
   let startRow = anchor.row;
   let startCol = anchor.col;
+  const boardWidth = getBoardWidth(board);
+  const boardHeight = getBoardHeight(board);
   
   if (direction === 'horizontal') {
     while (startCol > 0 && board.cells[startRow][startCol - 1].letter) {
       startCol--;
     }
-    while (startCol < board.size && board.cells[startRow][startCol].letter) {
+    while (startCol < boardWidth && board.cells[startRow][startCol].letter) {
       positions.push({ row: startRow, col: startCol });
       startCol++;
     }
@@ -322,7 +344,7 @@ function collectWordPositions(board: Board, anchor: Position, direction: 'horizo
     while (startRow > 0 && board.cells[startRow - 1][startCol].letter) {
       startRow--;
     }
-    while (startRow < board.size && board.cells[startRow][startCol].letter) {
+    while (startRow < boardHeight && board.cells[startRow][startCol].letter) {
       positions.push({ row: startRow, col: startCol });
       startRow++;
     }
@@ -438,7 +460,7 @@ function checkParallelWordSpacing(
     for (const dir of perpendicularDirections) {
       const adjPos = { row: newPos.row + dir.row, col: newPos.col + dir.col };
       
-      if (!isValidPosition(adjPos)) {
+      if (!isValidPosition(adjPos, board)) {
         continue;
       }
       
@@ -693,7 +715,7 @@ export function validateMove(
   
   // Check if first move passes through center
   if (isFirstMove(board)) {
-    if (!passesThroughCenter(move.positions)) {
+    if (!passesThroughCenter(board, move.positions)) {
       return { valid: false, error: 'First word must pass through the center' };
     }
   } else {
@@ -709,7 +731,7 @@ export function validateMove(
   
   // Check all positions are valid
   for (const pos of move.positions) {
-    if (!isValidPosition(pos)) {
+    if (!isValidPosition(pos, board)) {
       return { valid: false, error: 'Invalid position' };
     }
   }
@@ -818,8 +840,10 @@ export function applyMove(board: Board, move: Move, playerHand: Letter[]): {
   }
   
   // Clear newly placed flags after processing
-  for (let row = 0; row < BOARD_SIZE; row++) {
-    for (let col = 0; col < BOARD_SIZE; col++) {
+  const boardHeight = getBoardHeight(newBoard);
+  const boardWidth = getBoardWidth(newBoard);
+  for (let row = 0; row < boardHeight; row++) {
+    for (let col = 0; col < boardWidth; col++) {
       if (newBoard.cells[row][col].isNewlyPlaced) {
         newBoard.cells[row][col].isNewlyPlaced = false;
       }
@@ -843,6 +867,76 @@ export function checkWinCondition(
   reason?: string;
 } {
   const players = game.players;
+  const player = players.find(p => !p.isAI);
+  const ai = players.find(p => p.isAI);
+
+  // Daily challenge: end as soon as the player reaches the target score
+  if (game.mode === 'daily') {
+    const targetScore = game.dailyChallenge?.targetScore;
+    if (targetScore !== undefined && player && player.score >= targetScore) {
+      return {
+        finished: true,
+        winnerId: player.id,
+        reason: 'daily_target_reached',
+      };
+    }
+  }
+  
+  // Arena mode: Check for rank-specific score win condition
+  if (game.mode === 'arena') {
+    if (player && ai) {
+      // Get score threshold based on arena rank
+      // Novice (0) and Apprentice (1): 100 points
+      // Adept (2) and Expert (3): 150 points
+      // Master (4): 220 points
+      let scoreThreshold = 200; // Default fallback
+      if (game.arenaRankId !== undefined) {
+        if (game.arenaRankId === 0 || game.arenaRankId === 1) {
+          scoreThreshold = 100;
+        } else if (game.arenaRankId === 2 || game.arenaRankId === 3) {
+          scoreThreshold = 150;
+        } else if (game.arenaRankId === 4) {
+          scoreThreshold = 220;
+        }
+      }
+      
+      // Check if any player reached the threshold
+      if (player.score >= scoreThreshold) {
+        return {
+          finished: true,
+          winnerId: player.id,
+          reason: 'score_limit_reached',
+        };
+      }
+      if (ai.score >= scoreThreshold) {
+        return {
+          finished: true,
+          winnerId: ai.id,
+          reason: 'score_limit_reached',
+        };
+      }
+    }
+    
+    // Check HP-based win conditions for arena boss battles
+    if (player && ai && player.hp !== undefined && ai.hp !== undefined) {
+      // Check if AI HP reached 0
+      if (ai.hp <= 0) {
+        return {
+          finished: true,
+          winnerId: player.id,
+          reason: 'boss_defeated',
+        };
+      }
+      // Check if player HP reached 0
+      if (player.hp <= 0) {
+        return {
+          finished: true,
+          winnerId: ai.id,
+          reason: 'player_defeated',
+        };
+      }
+    }
+  }
   
   // Check HP-based win conditions for boss battles (levels 5 and 10)
   if (game.mode === 'journey' && (game.journeyLevelId === 5 || game.journeyLevelId === 10)) {

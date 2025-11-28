@@ -30,11 +30,14 @@ export interface Cell {
   letter: Letter | null;
   isCenter: boolean;
   isNewlyPlaced?: boolean;
+  isCorrupted?: boolean;
 }
 
 export interface Board {
   cells: Cell[][];
   size: number;
+  width?: number;
+  height?: number;
 }
 
 export interface Move {
@@ -50,6 +53,7 @@ export interface Player {
   name: string;
   hand: Letter[];
   score: number;
+  hp?: number;
   isAI: boolean;
   aiDifficulty?: AIDifficulty;
 }
@@ -67,6 +71,19 @@ export interface GameState {
   lastMoveAt?: Date;
   turnHistory: Move[];
   activePowerUps: PowerUp[];
+  wordCount?: number;
+  journeyLevelId?: number;
+  sigilCount?: number;
+  activeSigilEffects?: Array<{ type: string; damage: number; turnsRemaining: number }>;
+  fiveLetterWordCount?: number;
+  dailyChallenge?: {
+    puzzleId: string;
+    targetScore?: number;
+  };
+  lastEvent?: {
+    type: 'checkmate';
+    message: string;
+  };
 }
 
 export interface PowerUp {
@@ -100,13 +117,22 @@ export interface JourneyLevel {
   description: string;
   aiDifficulty: AIDifficulty;
   aiVocabularyTier: number;
-  baseObjective: 'win' | 'score_threshold' | 'use_specific_words';
+  baseObjective: 'win' | 'score_threshold' | 'use_specific_words' | 'word_count' | 'race_to_score' | 'build_word';
   targetScore?: number;
+  targetWordCount?: number;
   requiredWords?: string[];
   startingLetters?: string[];
   bannedLetters?: string[];
   turnLimit?: number;
   starsRequired: number;
+  allowGaps?: boolean;
+  hasAI?: boolean;
+  boardWidth?: number;
+  boardHeight?: number;
+  startingWord?: string;
+  corruptedSquares?: Position[];
+  targetWord?: string;
+  specialLetterDistribution?: { letters: string[]; turns: number };
   rewards: {
     coins: number;
     powerUps: PowerUpType[];
@@ -161,13 +187,12 @@ export interface ChallengePuzzle {
 }
 
 export interface PuzzleConfig {
+  aiDifficulty?: AIDifficulty;
+  targetScore?: number;
   fixedLetters?: string[];
   targetWords?: string[];
   timeLimit?: number;
   minWordsRequired?: number;
-  aiDifficulty?: AIDifficulty;
-  targetScore?: number;
-  minimumWords?: number;
 }
 
 export interface DailyChallenge {

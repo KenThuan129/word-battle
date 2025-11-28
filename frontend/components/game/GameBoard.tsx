@@ -57,6 +57,8 @@ export default function GameBoard({
   return (
     <div className="board-shell">
       <div className="board-surface" data-disabled={disabled}>
+        <span className="board-surface__glyph glyph--tl" aria-hidden="true" />
+        <span className="board-surface__glyph glyph--br" aria-hidden="true" />
         <div
           className="board-surface__grid"
           style={{ gridTemplateColumns: `repeat(${boardWidth}, minmax(0, 1fr))` }}
@@ -101,8 +103,6 @@ export default function GameBoard({
             ))
           )}
         </div>
-        <span className="board-surface__glyph glyph--tl" aria-hidden="true" />
-        <span className="board-surface__glyph glyph--br" aria-hidden="true" />
       </div>
 
       <div className="board-legend">

@@ -17,13 +17,20 @@ import {
   doesBoardContainWord,
 } from '@/lib/gameEngine';
 import { isValidWord } from '@/lib/dictionary';
-import { calculateAIMove, AI_CONFIGS } from '@/lib/aiEngine';
+import { calculateAIMove, AI_CONFIGS, hasValidMove } from '@/lib/aiEngine';
 import { checkWinCondition } from '@/lib/gameEngine';
 import { getLevel } from '@/lib/journeyLevels';
 import { addWordToBank } from '@/lib/wordBankUtils';
 
 interface StartGameOptions {
   journeyLevelId?: number;
+  arenaRankId?: number;
+  isBossBattle?: boolean;
+  selectedSigil?: string;
+  playerHp?: number;
+  aiHp?: number;
+  dailyPuzzleId?: string;
+  dailyTargetScore?: number;
 }
 
 interface GameStore {
@@ -162,7 +169,50 @@ const softenAIHand = (hand: Letter[]): Letter[] => {
   });
 };
 
-export const useGameStore = create<GameStore>((set, get) => ({
+export const useGameStore = create<GameStore>((set, get) => {
+  const finishWithCheckmate = (gameState: GameState, winner: Player, message: string) => {
+    const updatedPlayers = gameState.players.map(p =>
+      p.id === winner.id ? { ...p, score: p.score + 5 } : p
+    );
+
+    set({
+      game: {
+        ...gameState,
+        players: updatedPlayers,
+        status: 'finished',
+        winnerId: winner.id,
+        lastEvent: { type: 'checkmate', message },
+        lastMoveAt: new Date(),
+      },
+      currentMove: null,
+    });
+  };
+
+  const ensureHumanHasMove = (gameState: GameState, allowGaps: boolean): boolean => {
+    const currentPlayer = gameState.players.find(
+      p => p.id === gameState.currentPlayerId && !p.isAI
+    );
+    if (!currentPlayer) {
+      return false;
+    }
+    const aiOpponent = gameState.players.find(p => p.isAI);
+    if (!aiOpponent) {
+      return false;
+    }
+    const hasMove = hasValidMove(
+      gameState.board,
+      currentPlayer.hand,
+      AI_CONFIGS.easy,
+      allowGaps
+    );
+    if (!hasMove) {
+      finishWithCheckmate(gameState, aiOpponent, 'Checkmate! AI wins +5 points.');
+      return true;
+    }
+    return false;
+  };
+
+  return ({
   game: null,
   currentMove: null,
   
@@ -245,27 +295,51 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     }
     
-    // Check if boss battle (levels 5 or 10)
-    const isBossBattle = options?.journeyLevelId === 5 || options?.journeyLevelId === 10;
+    // Check if boss battle (journey levels 5 or 10, or arena boss battle)
+    const isBossBattle = options?.journeyLevelId === 5 || options?.journeyLevelId === 10 || options?.isBossBattle === true;
     
-    // Set AI HP based on level: Level 5 = 65 HP, Level 10 = 75 HP
-    const aiHp = isBossBattle 
-      ? (options.journeyLevelId === 5 ? 65 : options.journeyLevelId === 10 ? 75 : 200)
-      : undefined;
+    // Set HP based on mode and options
+    let playerHp: number | undefined;
+    let aiHp: number | undefined;
+    
+    if (mode === 'arena' && options?.isBossBattle) {
+      // Arena boss battle: Player 100 HP, AI 130 HP
+      playerHp = options.playerHp ?? 100;
+      aiHp = options.aiHp ?? 130;
+    } else if (isBossBattle) {
+      // Journey boss battle: Set AI HP based on level
+      playerHp = 100;
+      aiHp = options.journeyLevelId === 5 ? 65 : options.journeyLevelId === 10 ? 75 : 200;
+    }
+    
+    // Handle Word Blast sigil (add 3 extra hand slots)
+    let handSize = 10;
+    if (mode === 'arena' && options?.isBossBattle && options?.selectedSigil === 'word_blast') {
+      handSize = 13; // Extra 3 slots for 3 turns
+    }
+    
+    let playerHandFinal = playerHand;
+    if (handSize > 10) {
+      // Draw additional letters for Word Blast sigil
+      const extraLetters = drawLetters(handSize - 10, shuffled);
+      playerHandFinal = [...playerHand, ...extraLetters];
+    }
     
     const player: Player = {
       id: playerId,
       name: 'You',
-      hand: playerHand,
+      hand: playerHandFinal,
       score: 0,
-      hp: isBossBattle ? 100 : undefined,
+      hp: playerHp,
       isAI: false,
     };
     
     const players: Player[] = [player];
     
-    // Only add AI if level has AI
-    if (hasAI) {
+    // Arena mode always has AI, journey mode checks hasAI
+    const shouldAddAI = mode === 'arena' || hasAI;
+    
+    if (shouldAddAI) {
       let aiHand = drawLetters(10, shuffled);
       if (isBeginnerJourney) {
         aiHand = softenAIHand(aiHand);
@@ -283,6 +357,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
       players.push(ai);
     }
     
+    // Initialize arena sigil effects
+    const arenaSigilEffects = mode === 'arena' && options?.isBossBattle && options?.selectedSigil
+      ? [{
+          type: options.selectedSigil as any,
+          turnsRemaining: options.selectedSigil === 'word_blast' ? 3 : undefined,
+          vowelsPlayed: options.selectedSigil === 'protection_of_knowledge' ? 0 : undefined,
+          firstHitDone: options.selectedSigil === 'overloading_process' ? false : undefined,
+          wordBlastTurnsRemaining: options.selectedSigil === 'word_blast' ? 3 : undefined,
+        }]
+      : undefined;
+    
     const game: GameState = {
       id: `game-${Date.now()}`,
       mode,
@@ -296,12 +381,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
       activePowerUps: [],
       wordCount: 0,
       journeyLevelId: options?.journeyLevelId,
+      dailyChallenge: mode === 'daily' && options?.dailyPuzzleId
+        ? {
+            puzzleId: options.dailyPuzzleId,
+            targetScore: options.dailyTargetScore,
+          }
+        : undefined,
+      arenaRankId: options?.arenaRankId,
+      arenaBossBattle: mode === 'arena' && options?.isBossBattle
+        ? {
+            isBossBattle: true,
+            selectedSigil: options.selectedSigil as any,
+          }
+        : undefined,
+      arenaSigilEffects,
       sigilCount: isBossBattle ? 0 : undefined,
       activeSigilEffects: isBossBattle ? [] : undefined,
       fiveLetterWordCount: options?.journeyLevelId === 10 ? 0 : undefined,
     };
     
     set({ game, currentMove: null });
+
+    const allowGapsForStart = levelConfig?.allowGaps ?? false;
+    ensureHumanHasMove(game, allowGapsForStart);
   },
   
   selectLetter: (letter: Letter, index: number) => {
@@ -776,7 +878,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
     
     // Check if boss battle
-    const isBossBattle = game.journeyLevelId === 5 || game.journeyLevelId === 10;
+    const isBossBattle = game.journeyLevelId === 5 || game.journeyLevelId === 10 || game.arenaBossBattle?.isBossBattle === true;
+    const isArenaBoss = game.mode === 'arena' && game.arenaBossBattle?.isBossBattle === true;
     
     // Apply move
     const { newBoard, newHand, score } = applyMove(game.board, move, currentPlayer.hand);
@@ -788,8 +891,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Update word count for level 1
     const newWordCount = (game.wordCount || 0) + 1;
     
-    // Replenish hand to maintain 10 letters after move
-    const targetHandSize = 10;
+    // Handle hand size for Word Blast sigil
+    let targetHandSize = 10;
+    let arenaSigilEffects = game.arenaSigilEffects ? [...game.arenaSigilEffects] : [];
+    
+    if (isArenaBoss) {
+      const wordBlastEffect = arenaSigilEffects.find(e => e.type === 'word_blast');
+      if (wordBlastEffect && wordBlastEffect.wordBlastTurnsRemaining && wordBlastEffect.wordBlastTurnsRemaining > 0) {
+        targetHandSize = 13; // Extra 3 slots
+        // Decrease turns remaining
+        wordBlastEffect.wordBlastTurnsRemaining -= 1;
+        if (wordBlastEffect.wordBlastTurnsRemaining <= 0) {
+          arenaSigilEffects = arenaSigilEffects.filter(e => e.type !== 'word_blast');
+        }
+      }
+    }
+    
+    // Replenish hand to maintain target size after move
     const lettersNeeded = Math.max(0, targetHandSize - newHand.length);
     let replenishedHand = [...newHand];
     
@@ -817,11 +935,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const mainWordLength = move.word.length;
       let damageToOpponent = calculateDamage(mainWordLength);
       
-      // Apply active sigil effects (from previous turns)
-      const activeEffects = game.activeSigilEffects || [];
-      for (const effect of activeEffects) {
-        if (effect.turnsRemaining > 0) {
-          damageToOpponent += effect.damage;
+      // Arena sigil: Overloading Process - additional damage on first hit and next 2 turns
+      if (isArenaBoss) {
+        const overloadingEffect = arenaSigilEffects.find(e => e.type === 'overloading_process');
+        if (overloadingEffect) {
+          if (!overloadingEffect.firstHitDone) {
+            // First hit: +4 damage
+            damageToOpponent += 4;
+            overloadingEffect.firstHitDone = true;
+            // Schedule +2 damage for next 2 turns
+            if (!overloadingEffect.turnsRemaining) {
+              overloadingEffect.turnsRemaining = 2;
+            }
+          } else if (overloadingEffect.turnsRemaining && overloadingEffect.turnsRemaining > 0) {
+            // Next 2 turns: +2 damage each
+            damageToOpponent += 2;
+            overloadingEffect.turnsRemaining -= 1;
+            if (overloadingEffect.turnsRemaining <= 0) {
+              arenaSigilEffects = arenaSigilEffects.filter(e => e.type !== 'overloading_process');
+            }
+          }
+        }
+      }
+      
+      // Apply active sigil effects (from previous turns) - Journey mode only
+      if (!isArenaBoss) {
+        const activeEffects = game.activeSigilEffects || [];
+        for (const effect of activeEffects) {
+          if (effect.turnsRemaining > 0) {
+            damageToOpponent += effect.damage;
+          }
         }
       }
       
@@ -868,6 +1011,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
         turnsRemaining: effect.turnsRemaining - 1,
       })).filter(effect => effect.turnsRemaining > 0);
       
+      // Arena sigil: Track vowels played for Protection of Knowledge
+      if (isArenaBoss) {
+        const vowels = ['A', 'E', 'I', 'O', 'U'];
+        const vowelsInWord = move.word.toUpperCase().split('').filter(char => vowels.includes(char)).length;
+        const protectionEffect = arenaSigilEffects.find(e => e.type === 'protection_of_knowledge');
+        if (protectionEffect) {
+          protectionEffect.vowelsPlayed = (protectionEffect.vowelsPlayed || 0) + vowelsInWord;
+        }
+      }
+      
       // Update game state with sigil info
       const updatedGameWithSigils: GameState = {
         ...game,
@@ -881,6 +1034,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         sigilCount: newSigilCount,
         activeSigilEffects: newActiveEffects,
         fiveLetterWordCount: newFiveLetterWordCount,
+        arenaSigilEffects: isArenaBoss ? arenaSigilEffects : game.arenaSigilEffects,
       };
       
       // Switch turn
@@ -1008,9 +1162,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return { success: true };
     }
     
-    // If it's AI's turn, trigger AI move after a short delay
+    // If it's AI's turn, ensure it has a move; otherwise, trigger AI move after a short delay
     const aiPlayer = updatedGame.players.find(p => p.id === updatedGame.currentPlayerId && p.isAI);
     if (aiPlayer) {
+      const aiDifficulty = aiPlayer.aiDifficulty ?? 'easy';
+      const aiConfig = AI_CONFIGS[aiDifficulty];
+      const aiHasMove = hasValidMove(updatedGame.board, aiPlayer.hand, aiConfig, allowGaps);
+      if (!aiHasMove) {
+        const humanWinner = updatedGame.players.find(p => !p.isAI);
+        if (humanWinner) {
+          finishWithCheckmate(updatedGame, humanWinner, 'Checkmate! Player wins +5 points.');
+          return { success: true };
+        }
+      }
+
       setTimeout(() => {
         get().makeAIMove();
       }, 1000); // 1 second delay for AI thinking
@@ -1079,8 +1244,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const aiMove = calculateAIMove(game.board, aiPlayer.hand, playerHand, config, game.turn, allowGaps);
     
     if (!aiMove) {
-      // AI has no valid moves - game might be stuck
-      console.log('AI has no valid moves');
+      const playerWinner = game.players.find(p => !p.isAI);
+      if (playerWinner) {
+        finishWithCheckmate(game, playerWinner, 'Checkmate! Player wins +5 points.');
+      }
       return;
     }
     
@@ -1104,7 +1271,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     };
     
     // Check if boss battle
-    const isBossBattle = game.journeyLevelId === 5 || game.journeyLevelId === 10;
+    const isBossBattle = game.journeyLevelId === 5 || game.journeyLevelId === 10 || game.arenaBossBattle?.isBossBattle === true;
     
     // Replenish AI hand to maintain 10 letters after move
     const targetHandSize = 10;
@@ -1130,10 +1297,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
     
     // Boss battle: Apply AI damage to player
+    const isArenaBoss = game.mode === 'arena' && game.arenaBossBattle?.isBossBattle === true;
     if (isBossBattle && aiPlayer.hp !== undefined) {
       const player = game.players.find(p => !p.isAI);
       const mainWordLength = aiMove.word.length;
-      const damageToPlayer = calculateDamage(mainWordLength);
+      let damageToPlayer = calculateDamage(mainWordLength);
+      
+      // Arena sigil: Protection of Knowledge - reduce damage by 1 per 3 vowels played
+      if (isArenaBoss) {
+        const protectionEffect = game.arenaSigilEffects?.find(e => e.type === 'protection_of_knowledge');
+        if (protectionEffect && protectionEffect.vowelsPlayed !== undefined) {
+          const damageReduction = Math.floor(protectionEffect.vowelsPlayed / 3);
+          damageToPlayer = Math.max(0, damageToPlayer - damageReduction);
+        }
+      }
       
       // Update player HP
       if (player && player.hp !== undefined) {
@@ -1170,6 +1347,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Hand replenishment is now done after each move, so no need for periodic replenishment
     
     // Check win condition after AI move
+    if (ensureHumanHasMove(updatedGame, allowGaps)) {
+      return;
+    }
+
     const levelForWinCheck = levelConfigForAI ? {
       baseObjective: levelConfigForAI.baseObjective,
       targetScore: levelConfigForAI.targetScore,
@@ -1191,5 +1372,5 @@ export const useGameStore = create<GameStore>((set, get) => ({
   endGame: () => {
     set({ game: null, currentMove: null });
   },
-}));
-
+});
+});

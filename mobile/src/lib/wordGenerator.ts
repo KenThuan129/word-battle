@@ -1,6 +1,6 @@
 // Word Generation Engine - Supports building words using board letters
 
-import { Board, Letter, Position } from '@/types';
+import { Board, Letter, Position } from '../types';
 import { isValidWord } from './dictionary';
 import { getBoardWidth, getBoardHeight } from './gameEngine';
 
