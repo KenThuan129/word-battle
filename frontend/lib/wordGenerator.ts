@@ -4,6 +4,14 @@ import { Board, Letter, Position } from '@/types';
 import { isValidWord } from './dictionary';
 import { getBoardWidth, getBoardHeight } from './gameEngine';
 
+type GeneratedWord = {
+  word: string;
+  positions: Position[];
+  direction: 'horizontal' | 'vertical';
+  lettersFromHand: Letter[];
+  lettersFromBoard: Position[];
+};
+
 /**
  * Generate all possible words that can be formed using:
  * - Letters from player's hand
@@ -15,73 +23,49 @@ export function generateWordsFromBoard(
   hand: Letter[],
   minLength: number,
   maxLength: number
-): Array<{
-  word: string;
-  positions: Position[];
-  direction: 'horizontal' | 'vertical';
-  lettersFromHand: Letter[];
-  lettersFromBoard: Position[];
-}> {
-  const words: Array<{
-    word: string;
-    positions: Position[];
-    direction: 'horizontal' | 'vertical';
-    lettersFromHand: Letter[];
-    lettersFromBoard: Position[];
-  }> = [];
-  
+): GeneratedWord[] {
   const boardWidth = getBoardWidth(board);
   const boardHeight = getBoardHeight(board);
-  
-  // First move: must pass through center
+  const words: GeneratedWord[] = [];
+
   if (isFirstMove(board)) {
     const centerRow = Math.floor(boardHeight / 2);
     const centerCol = Math.floor(boardWidth / 2);
-    
-    // Generate words from hand only for first move
-    const handLetters = hand.map(l => l.char).join('').toLowerCase();
+    const handLetters = hand.map((l) => l.char).join('').toLowerCase();
     const possibleWords = generateWordsFromLetters(handLetters, minLength, maxLength);
-    
+
     for (const word of possibleWords) {
-      // Try horizontal
       if (word.length <= boardWidth) {
         const startCol = Math.max(0, centerCol - word.length + 1);
         for (let col = startCol; col <= centerCol && col + word.length <= boardWidth; col++) {
           if (col <= centerCol && centerCol < col + word.length) {
             const positions: Position[] = [];
-            const lettersFromHand: Letter[] = [];
-            
             for (let i = 0; i < word.length; i++) {
               positions.push({ row: centerRow, col: col + i });
             }
-            
-            // Check if word can be placed
+
             if (canFormWord(board, hand, word, positions)) {
               words.push({
                 word: word.toUpperCase(),
                 positions,
                 direction: 'horizontal',
-                lettersFromHand: [...hand], // All letters from hand
+                lettersFromHand: [...hand],
                 lettersFromBoard: [],
               });
             }
           }
         }
       }
-      
-      // Try vertical
+
       if (word.length <= boardHeight) {
         const startRow = Math.max(0, centerRow - word.length + 1);
         for (let row = startRow; row <= centerRow && row + word.length <= boardHeight; row++) {
           if (row <= centerRow && centerRow < row + word.length) {
             const positions: Position[] = [];
-            const lettersFromHand: Letter[] = [];
-            
             for (let i = 0; i < word.length; i++) {
               positions.push({ row: row + i, col: centerCol });
             }
-            
-            // Check if word can be placed
+
             if (canFormWord(board, hand, word, positions)) {
               words.push({
                 word: word.toUpperCase(),
@@ -96,42 +80,26 @@ export function generateWordsFromBoard(
       }
     }
   } else {
-    // Subsequent moves: can use board letters and must connect
     words.push(...generateWordsConnectingToBoard(board, hand, minLength, maxLength));
   }
-  
+
   return words;
 }
 
 /**
- * Generate words that connect to existing letters on the board
- * Can use both hand letters and board letters
+ * Generate words that connect to existing letters on the board.
  */
 function generateWordsConnectingToBoard(
   board: Board,
   hand: Letter[],
   minLength: number,
   maxLength: number
-): Array<{
-  word: string;
-  positions: Position[];
-  direction: 'horizontal' | 'vertical';
-  lettersFromHand: Letter[];
-  lettersFromBoard: Position[];
-}> {
-  const words: Array<{
-    word: string;
-    positions: Position[];
-    direction: 'horizontal' | 'vertical';
-    lettersFromHand: Letter[];
-    lettersFromBoard: Position[];
-  }> = [];
-  
-  const handLetters = hand.map(l => l.char).join('').toLowerCase();
+): GeneratedWord[] {
+  const words: GeneratedWord[] = [];
+  const handLetters = hand.map((l) => l.char).join('').toLowerCase();
   const boardWidth = getBoardWidth(board);
   const boardHeight = getBoardHeight(board);
-  
-  // Find all existing letters on board
+
   const boardLetters: Array<{ pos: Position; char: string }> = [];
   for (let row = 0; row < boardHeight; row++) {
     for (let col = 0; col < boardWidth; col++) {
@@ -144,48 +112,43 @@ function generateWordsConnectingToBoard(
       }
     }
   }
-  
-  // Try building words starting from each board letter
+
   for (const boardLetter of boardLetters) {
-    // Horizontal: extend left/right from this letter
-    const horizontalWords = generateWordsFromPosition(
-      board,
-      hand,
-      boardLetter.pos,
-      'horizontal',
-      boardLetter.char,
-      minLength,
-      maxLength
+    words.push(
+      ...generateWordsFromPosition(
+        board,
+        hand,
+        boardLetter.pos,
+        'horizontal',
+        boardLetter.char,
+        minLength,
+        maxLength
+      )
     );
-    words.push(...horizontalWords);
-    
-    // Vertical: extend up/down from this letter
-    const verticalWords = generateWordsFromPosition(
-      board,
-      hand,
-      boardLetter.pos,
-      'vertical',
-      boardLetter.char,
-      minLength,
-      maxLength
+    words.push(
+      ...generateWordsFromPosition(
+        board,
+        hand,
+        boardLetter.pos,
+        'vertical',
+        boardLetter.char,
+        minLength,
+        maxLength
+      )
     );
-    words.push(...verticalWords);
   }
-  
-  // Also try building words that will connect to board letters
+
   const allPossibleWords = generateWordsFromLetters(handLetters, minLength, maxLength);
-  
   for (const word of allPossibleWords) {
-    // Try placing word near existing letters
-    const placements = findWordPlacementsUsingBoard(board, hand, word);
-    words.push(...placements);
+    words.push(...findWordPlacementsUsingBoard(board, hand, word));
   }
-  
+
   return words;
 }
 
 /**
- * Generate words extending from a specific position using board and hand letters
+ * Attempt to build words extending from a specific board position.
+ * This simplified routine only uses contiguous board letters.
  */
 function generateWordsFromPosition(
   board: Board,
@@ -195,108 +158,53 @@ function generateWordsFromPosition(
   startChar: string,
   minLength: number,
   maxLength: number
-): Array<{
-  word: string;
-  positions: Position[];
-  direction: 'horizontal' | 'vertical';
-  lettersFromHand: Letter[];
-  lettersFromBoard: Position[];
-}> {
-  const words: Array<{
-    word: string;
-    positions: Position[];
-    direction: 'horizontal' | 'vertical';
-    lettersFromHand: Letter[];
-    lettersFromBoard: Position[];
-  }> = [];
+): GeneratedWord[] {
+  const words: GeneratedWord[] = [];
   const boardWidth = getBoardWidth(board);
   const boardHeight = getBoardHeight(board);
-  
-  const handLetters = hand.map(l => l.char.toLowerCase()).join('').split('');
-  const handCounts: Record<string, number> = {};
-  for (const char of handLetters) {
-    handCounts[char] = (handCounts[char] || 0) + 1;
-  }
-  
-  // Try extending in both directions
-  if (direction === 'horizontal') {
-    // Try extending right
-    for (let length = 1; length <= maxLength; length++) {
-      const positions: Position[] = [startPos];
-      const lettersFromBoard: Position[] = [startPos];
-      const lettersFromHand: Letter[] = [];
-      const usedHand: Record<string, number> = {};
-      
-      let word = startChar;
-      let valid = true;
-      
-      for (let i = 1; i < length && valid; i++) {
-        const col = startPos.col + i;
-        if (col >= boardWidth) {
-          valid = false;
-          break;
-        }
-        
-        const pos = { row: startPos.row, col };
-        const cell = board.cells[pos.row][pos.col];
-        
-        if (cell.letter) {
-          // Use board letter
-          word += cell.letter.char.toLowerCase();
-          positions.push(pos);
-          lettersFromBoard.push(pos);
-        } else {
-          // Need to use hand letter
-          // Find a letter that can form a valid word
-          // This is complex - we'd need to try all combinations
-          // For now, skip this optimization
-          valid = false;
-        }
-      }
-      
-      if (valid && word.length >= minLength && isValidWord(word)) {
-        words.push({
-          word: word.toUpperCase(),
-          positions,
-          direction: 'horizontal',
-          lettersFromHand,
-          lettersFromBoard,
-        });
-      }
+  const delta = direction === 'horizontal' ? { row: 0, col: 1 } : { row: 1, col: 0 };
+
+  let word = startChar;
+  const positions: Position[] = [startPos];
+  const lettersFromBoard: Position[] = [startPos];
+
+  for (let step = 1; step < maxLength; step++) {
+    const next = { row: startPos.row + delta.row * step, col: startPos.col + delta.col * step };
+    if (next.row < 0 || next.row >= boardHeight || next.col < 0 || next.col >= boardWidth) {
+      break;
+    }
+
+    const cell = board.cells[next.row][next.col];
+    if (!cell.letter) {
+      break;
+    }
+
+    word += cell.letter.char.toLowerCase();
+    positions.push(next);
+    lettersFromBoard.push(next);
+
+    if (word.length >= minLength && word.length <= maxLength && isValidWord(word)) {
+      words.push({
+        word: word.toUpperCase(),
+        positions: [...positions],
+        direction,
+        lettersFromHand: [],
+        lettersFromBoard: [...lettersFromBoard],
+      });
     }
   }
-  
-  // Similar for vertical...
-  // This is a simplified version - full implementation would be more complex
-  
+
   return words;
 }
 
 /**
- * Find all valid placements for a word that uses board letters
+ * Find all valid placements for a word that uses board letters.
  */
-function findWordPlacementsUsingBoard(
-  board: Board,
-  hand: Letter[],
-  word: string
-): Array<{
-  word: string;
-  positions: Position[];
-  direction: 'horizontal' | 'vertical';
-  lettersFromHand: Letter[];
-  lettersFromBoard: Position[];
-}> {
-  const placements: Array<{
-    word: string;
-    positions: Position[];
-    direction: 'horizontal' | 'vertical';
-    lettersFromHand: Letter[];
-    lettersFromBoard: Position[];
-  }> = [];
+function findWordPlacementsUsingBoard(board: Board, hand: Letter[], word: string): GeneratedWord[] {
+  const placements: GeneratedWord[] = [];
   const boardWidth = getBoardWidth(board);
   const boardHeight = getBoardHeight(board);
-  
-  // Try horizontal placements
+
   if (word.length <= boardWidth) {
     for (let row = 0; row < boardHeight; row++) {
       for (let col = 0; col <= boardWidth - word.length; col++) {
@@ -307,8 +215,7 @@ function findWordPlacementsUsingBoard(
       }
     }
   }
-  
-  // Try vertical placements
+
   if (word.length <= boardHeight) {
     for (let row = 0; row <= boardHeight - word.length; row++) {
       for (let col = 0; col < boardWidth; col++) {
@@ -316,9 +223,15 @@ function findWordPlacementsUsingBoard(
         if (result) {
           placements.push(result);
         }
+      }
+    }
+  }
+
+  return placements;
+}
 
 /**
- * Try placing a word at a specific position, using board letters where possible
+ * Try placing a word at a specific position, using board letters where possible.
  */
 function tryPlaceWordAt(
   board: Board,
@@ -326,99 +239,84 @@ function tryPlaceWordAt(
   word: string,
   startPos: Position,
   direction: 'horizontal' | 'vertical'
-): {
-  word: string;
-  positions: Position[];
-  direction: 'horizontal' | 'vertical';
-  lettersFromHand: Letter[];
-  lettersFromBoard: Position[];
-} | null {
+): GeneratedWord | null {
   const positions: Position[] = [];
   const lettersFromHand: Letter[] = [];
   const lettersFromBoard: Position[] = [];
   const boardWidth = getBoardWidth(board);
   const boardHeight = getBoardHeight(board);
-  
+
   const handAvailable: Record<string, number> = {};
   for (const letter of hand) {
     const char = letter.char.toLowerCase();
     handAvailable[char] = (handAvailable[char] || 0) + 1;
   }
-  
-  // Build word checking each position
+
   let wordBuilt = '';
   let usesBoardLetter = false;
-  
+
   for (let i = 0; i < word.length; i++) {
     const char = word[i].toLowerCase();
-    let pos: Position;
-    
-    if (direction === 'horizontal') {
-      pos = { row: startPos.row, col: startPos.col + i };
-    } else {
-      pos = { row: startPos.row + i, col: startPos.col };
-    }
-    
-    // Check bounds
+    const pos =
+      direction === 'horizontal'
+        ? { row: startPos.row, col: startPos.col + i }
+        : { row: startPos.row + i, col: startPos.col };
+
     if (pos.row < 0 || pos.row >= boardHeight || pos.col < 0 || pos.col >= boardWidth) {
       return null;
     }
-    
+
     const cell = board.cells[pos.row][pos.col];
-    
     if (cell.letter) {
-      // Use board letter if it matches
       if (cell.letter.char.toLowerCase() !== char) {
-        return null; // Letter doesn't match
+        return null;
       }
       wordBuilt += char;
       positions.push(pos);
       lettersFromBoard.push(pos);
       usesBoardLetter = true;
     } else {
-      // Need letter from hand
-      if (!handAvailable[char] || handAvailable[char] === 0) {
-        return null; // Don't have this letter
+      if (!handAvailable[char]) {
+        return null;
       }
-      wordBuilt += char;
+      handAvailable[char]--;
+
+      const handLetter = hand.find((l) => l.char.toLowerCase() === char);
+      if (!handLetter) {
+        return null;
+      }
+      lettersFromHand.push(handLetter);
       positions.push(pos);
-      const handLetter = hand.find(l => l.char.toLowerCase() === char);
-      if (handLetter) {
-        lettersFromHand.push(handLetter);
-        handAvailable[char]--;
-      }
+      wordBuilt += char;
     }
   }
-  
-  // Must connect to existing letters (or be first move)
+
   if (!isFirstMove(board) && !usesBoardLetter) {
-    // Check if any position is adjacent to existing letters
-    const hasAdjacent = positions.some(pos => {
+    const touchesExisting = positions.some((pos) => {
       const adj = [
         { row: pos.row - 1, col: pos.col },
         { row: pos.row + 1, col: pos.col },
         { row: pos.row, col: pos.col - 1 },
         { row: pos.row, col: pos.col + 1 },
       ];
-      
-      return adj.some(a => {
+
+      return adj.some((a) => {
         if (a.row < 0 || a.row >= boardHeight || a.col < 0 || a.col >= boardWidth) {
           return false;
         }
         return board.cells[a.row][a.col].letter !== null;
       });
     });
-    
-    if (!hasAdjacent) {
+
+    if (!touchesExisting) {
       return null;
     }
   }
-  
-  // Verify word is valid
+
   if (!isValidWord(wordBuilt)) {
     return null;
   }
-  
+
   return {
     word: wordBuilt.toUpperCase(),
     positions,
@@ -429,83 +327,71 @@ function tryPlaceWordAt(
 }
 
 /**
- * Check if a word can be formed at given positions using hand and board letters
+ * Check if a word can be formed at given positions using hand and board letters.
  */
-function canFormWord(
-  board: Board,
-  hand: Letter[],
-  word: string,
-  positions: Position[]
-): boolean {
+function canFormWord(board: Board, hand: Letter[], word: string, positions: Position[]): boolean {
   const handAvailable: Record<string, number> = {};
   for (const letter of hand) {
     const char = letter.char.toLowerCase();
     handAvailable[char] = (handAvailable[char] || 0) + 1;
   }
-  
+
   for (let i = 0; i < word.length; i++) {
     const char = word[i].toLowerCase();
     const pos = positions[i];
     const cell = board.cells[pos.row][pos.col];
-    
+
     if (cell.letter) {
       if (cell.letter.char.toLowerCase() !== char) {
         return false;
       }
     } else {
-      if (!handAvailable[char] || handAvailable[char] === 0) {
+      if (!handAvailable[char]) {
         return false;
       }
       handAvailable[char]--;
     }
   }
-  
+
   return true;
 }
 
 /**
- * Generate all valid words from given letters (simple permutation)
+ * Generate all valid words from given letters (simple permutation/backtracking).
  */
-function generateWordsFromLetters(
-  letters: string,
-  minLength: number,
-  maxLength: number
-): string[] {
+function generateWordsFromLetters(letters: string, minLength: number, maxLength: number): string[] {
   const words: string[] = [];
   const letterCounts: Record<string, number> = {};
-  
-  // Count letters
+
   for (const char of letters) {
     letterCounts[char] = (letterCounts[char] || 0) + 1;
   }
-  
-  // Generate all combinations
-  function generate(current: string, remaining: Record<string, number>) {
+
+  function explore(current: string, remaining: Record<string, number>) {
     if (current.length >= minLength && current.length <= maxLength && isValidWord(current)) {
       words.push(current);
     }
-    
+
     if (current.length >= maxLength) {
       return;
     }
-    
+
     for (const [char, count] of Object.entries(remaining)) {
       if (count > 0) {
-        const newRemaining = { ...remaining };
-        newRemaining[char] = count - 1;
-        generate(current + char, newRemaining);
+        const nextRemaining = { ...remaining, [char]: count - 1 };
+        explore(current + char, nextRemaining);
       }
     }
   }
-  
-  generate('', letterCounts);
-  
+
+  explore('', letterCounts);
   return [...new Set(words)];
 }
 
 function isFirstMove(board: Board): boolean {
   const boardWidth = getBoardWidth(board);
   const boardHeight = getBoardHeight(board);
+
   for (let row = 0; row < boardHeight; row++) {
     for (let col = 0; col < boardWidth; col++) {
       const cell = board.cells[row][col];
@@ -514,6 +400,7 @@ function isFirstMove(board: Board): boolean {
       }
     }
   }
+
   return true;
 }
 
